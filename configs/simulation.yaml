@@ -1,0 +1,501 @@
+# Campus Energy Intelligence Platform - Simulation Configuration
+# This file defines the virtual campus, schedules, and simulation parameters.
+
+simulation:
+  start_date: "2025-09-01T00:00:00+05:30"
+  end_date: "2025-09-29T00:00:00+05:30"
+  interval_minutes: 5
+  timezone: "Asia/Kolkata"
+  seed: 42
+  version: "1.0.0"
+
+campus:
+  name: "Vidya Institute of Technology"
+  location: "Bhubaneswar, Odisha, India"
+
+buildings:
+  - id: "BLD-A"
+    name: "Academic Block A"
+    type: "academic"
+    floors: 2
+    zones:
+      - id: "BLD-A-CR101"
+        name: "Classroom 101"
+        type: "classroom"
+        floor: 1
+        capacity: 60
+        schedule_id: "SCH-CLASS-MORNING"
+        equipment:
+          - id: "EQ-A-CR101-LT"
+            type: "lighting"
+            name: "Classroom 101 Lights"
+            rated_power_kw: 1.8
+            equipment_count: 20
+            unit_power_kw: 0.09
+          - id: "EQ-A-CR101-AC"
+            type: "hvac"
+            name: "Classroom 101 AC"
+            rated_power_kw: 5.0
+            equipment_count: 3
+            unit_power_kw: 1.67
+      - id: "BLD-A-CR102"
+        name: "Classroom 102"
+        type: "classroom"
+        floor: 1
+        capacity: 60
+        schedule_id: "SCH-CLASS-AFTERNOON"
+        equipment:
+          - id: "EQ-A-CR102-LT"
+            type: "lighting"
+            name: "Classroom 102 Lights"
+            rated_power_kw: 1.8
+            equipment_count: 20
+            unit_power_kw: 0.09
+          - id: "EQ-A-CR102-AC"
+            type: "hvac"
+            name: "Classroom 102 AC"
+            rated_power_kw: 5.0
+            equipment_count: 3
+            unit_power_kw: 1.67
+      - id: "BLD-A-CL01"
+        name: "Computer Lab 1"
+        type: "computer_lab"
+        floor: 2
+        capacity: 40
+        schedule_id: "SCH-LAB-MORNING"
+        equipment:
+          - id: "EQ-A-CL01-LT"
+            type: "lighting"
+            name: "Computer Lab 1 Lights"
+            rated_power_kw: 1.44
+            equipment_count: 16
+            unit_power_kw: 0.09
+          - id: "EQ-A-CL01-AC"
+            type: "hvac"
+            name: "Computer Lab 1 AC"
+            rated_power_kw: 7.0
+            equipment_count: 4
+            unit_power_kw: 1.75
+          - id: "EQ-A-CL01-PC"
+            type: "computer_lab"
+            name: "Computer Lab 1 PCs"
+            rated_power_kw: 12.0
+            equipment_count: 40
+            unit_power_kw: 0.30
+      - id: "BLD-A-CL02"
+        name: "Computer Lab 2"
+        type: "computer_lab"
+        floor: 2
+        capacity: 30
+        schedule_id: "SCH-LAB-AFTERNOON"
+        equipment:
+          - id: "EQ-A-CL02-LT"
+            type: "lighting"
+            name: "Computer Lab 2 Lights"
+            rated_power_kw: 1.08
+            equipment_count: 12
+            unit_power_kw: 0.09
+          - id: "EQ-A-CL02-AC"
+            type: "hvac"
+            name: "Computer Lab 2 AC"
+            rated_power_kw: 5.25
+            equipment_count: 3
+            unit_power_kw: 1.75
+          - id: "EQ-A-CL02-PC"
+            type: "computer_lab"
+            name: "Computer Lab 2 PCs"
+            rated_power_kw: 9.0
+            equipment_count: 30
+            unit_power_kw: 0.30
+    base_load_kw: 0.5
+
+  - id: "BLD-B"
+    name: "Academic Block B"
+    type: "academic"
+    floors: 2
+    zones:
+      - id: "BLD-B-CR201"
+        name: "Classroom 201"
+        type: "classroom"
+        floor: 1
+        capacity: 80
+        schedule_id: "SCH-CLASS-FULLDAY"
+        equipment:
+          - id: "EQ-B-CR201-LT"
+            type: "lighting"
+            name: "Classroom 201 Lights"
+            rated_power_kw: 2.25
+            equipment_count: 25
+            unit_power_kw: 0.09
+          - id: "EQ-B-CR201-AC"
+            type: "hvac"
+            name: "Classroom 201 AC"
+            rated_power_kw: 7.0
+            equipment_count: 4
+            unit_power_kw: 1.75
+      - id: "BLD-B-LAB1"
+        name: "Laboratory 1"
+        type: "laboratory"
+        floor: 2
+        capacity: 30
+        schedule_id: "SCH-LAB-MORNING"
+        equipment:
+          - id: "EQ-B-LAB1-LT"
+            type: "lighting"
+            name: "Laboratory 1 Lights"
+            rated_power_kw: 1.44
+            equipment_count: 16
+            unit_power_kw: 0.09
+          - id: "EQ-B-LAB1-AC"
+            type: "hvac"
+            name: "Laboratory 1 AC"
+            rated_power_kw: 5.25
+            equipment_count: 3
+            unit_power_kw: 1.75
+          - id: "EQ-B-LAB1-EQ"
+            type: "lab_equipment"
+            name: "Laboratory 1 Equipment"
+            rated_power_kw: 4.0
+            equipment_count: 10
+            unit_power_kw: 0.40
+    base_load_kw: 0.4
+
+  - id: "BLD-ADM"
+    name: "Administration Block"
+    type: "administration"
+    floors: 2
+    zones:
+      - id: "BLD-ADM-OF101"
+        name: "Office 101"
+        type: "office"
+        floor: 1
+        capacity: 25
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-ADM-OF101-LT"
+            type: "lighting"
+            name: "Office 101 Lights"
+            rated_power_kw: 1.08
+            equipment_count: 12
+            unit_power_kw: 0.09
+          - id: "EQ-ADM-OF101-AC"
+            type: "hvac"
+            name: "Office 101 AC"
+            rated_power_kw: 3.5
+            equipment_count: 2
+            unit_power_kw: 1.75
+          - id: "EQ-ADM-OF101-PC"
+            type: "computer_lab"
+            name: "Office 101 PCs"
+            rated_power_kw: 2.5
+            equipment_count: 10
+            unit_power_kw: 0.25
+      - id: "BLD-ADM-MR201"
+        name: "Meeting Room 201"
+        type: "meeting_room"
+        floor: 2
+        capacity: 15
+        schedule_id: "SCH-MEETING"
+        equipment:
+          - id: "EQ-ADM-MR201-LT"
+            type: "lighting"
+            name: "Meeting Room 201 Lights"
+            rated_power_kw: 0.72
+            equipment_count: 8
+            unit_power_kw: 0.09
+          - id: "EQ-ADM-MR201-AC"
+            type: "hvac"
+            name: "Meeting Room 201 AC"
+            rated_power_kw: 1.75
+            equipment_count: 1
+            unit_power_kw: 1.75
+    base_load_kw: 0.8
+
+  - id: "BLD-LIB"
+    name: "Library"
+    type: "library"
+    floors: 1
+    zones:
+      - id: "BLD-LIB-RH"
+        name: "Reading Hall"
+        type: "reading_hall"
+        floor: 1
+        capacity: 100
+        schedule_id: "SCH-LIBRARY"
+        equipment:
+          - id: "EQ-LIB-RH-LT"
+            type: "lighting"
+            name: "Reading Hall Lights"
+            rated_power_kw: 2.7
+            equipment_count: 30
+            unit_power_kw: 0.09
+          - id: "EQ-LIB-RH-AC"
+            type: "hvac"
+            name: "Reading Hall AC"
+            rated_power_kw: 10.5
+            equipment_count: 6
+            unit_power_kw: 1.75
+      - id: "BLD-LIB-CA"
+        name: "Computer Area"
+        type: "computer_lab"
+        floor: 1
+        capacity: 20
+        schedule_id: "SCH-LIBRARY"
+        equipment:
+          - id: "EQ-LIB-CA-LT"
+            type: "lighting"
+            name: "Computer Area Lights"
+            rated_power_kw: 0.72
+            equipment_count: 8
+            unit_power_kw: 0.09
+          - id: "EQ-LIB-CA-AC"
+            type: "hvac"
+            name: "Computer Area AC"
+            rated_power_kw: 3.5
+            equipment_count: 2
+            unit_power_kw: 1.75
+          - id: "EQ-LIB-CA-PC"
+            type: "computer_lab"
+            name: "Computer Area PCs"
+            rated_power_kw: 6.0
+            equipment_count: 20
+            unit_power_kw: 0.30
+    base_load_kw: 0.6
+
+  - id: "BLD-HST"
+    name: "Hostel A"
+    type: "hostel"
+    floors: 3
+    zones:
+      - id: "BLD-HST-CA"
+        name: "Common Area"
+        type: "common_area"
+        floor: 1
+        capacity: 50
+        schedule_id: "SCH-HOSTEL-COMMON"
+        equipment:
+          - id: "EQ-HST-CA-LT"
+            type: "lighting"
+            name: "Common Area Lights"
+            rated_power_kw: 1.8
+            equipment_count: 20
+            unit_power_kw: 0.09
+          - id: "EQ-HST-CA-AC"
+            type: "hvac"
+            name: "Common Area AC"
+            rated_power_kw: 7.0
+            equipment_count: 4
+            unit_power_kw: 1.75
+      - id: "BLD-HST-UA"
+        name: "Utility Area"
+        type: "utility"
+        floor: 1
+        capacity: 5
+        schedule_id: "SCH-HOSTEL-UTILITY"
+        equipment:
+          - id: "EQ-HST-UA-LT"
+            type: "lighting"
+            name: "Utility Area Lights"
+            rated_power_kw: 0.36
+            equipment_count: 4
+            unit_power_kw: 0.09
+    base_load_kw: 2.5
+
+  - id: "BLD-UTL"
+    name: "Utility Block"
+    type: "utility"
+    floors: 1
+    zones:
+      - id: "BLD-UTL-P1"
+        name: "Pump Room 1"
+        type: "pump_room"
+        floor: 1
+        capacity: 2
+        schedule_id: "SCH-PUMP"
+        equipment:
+          - id: "EQ-UTL-P1-PM"
+            type: "pump"
+            name: "Water Pump 1"
+            rated_power_kw: 7.5
+            equipment_count: 1
+            unit_power_kw: 7.5
+            flow_rated_lpm: 500
+      - id: "BLD-UTL-P2"
+        name: "Pump Room 2"
+        type: "pump_room"
+        floor: 1
+        capacity: 2
+        schedule_id: "SCH-PUMP"
+        equipment:
+          - id: "EQ-UTL-P2-PM"
+            type: "pump"
+            name: "Water Pump 2"
+            rated_power_kw: 5.5
+            equipment_count: 1
+            unit_power_kw: 5.5
+            flow_rated_lpm: 350
+    base_load_kw: 0.3
+
+schedules:
+  SCH-CLASS-MORNING:
+    name: "Morning Classes"
+    working_days: [1, 2, 3, 4, 5]  # Mon-Fri
+    slots:
+      - start: "08:00"
+        end: "12:00"
+        occupancy_fraction: 0.85
+      - start: "12:00"
+        end: "13:00"
+        occupancy_fraction: 0.10
+
+  SCH-CLASS-AFTERNOON:
+    name: "Afternoon Classes"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "13:00"
+        end: "17:00"
+        occupancy_fraction: 0.80
+
+  SCH-CLASS-FULLDAY:
+    name: "Full Day Classes"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "08:00"
+        end: "12:00"
+        occupancy_fraction: 0.85
+      - start: "12:00"
+        end: "13:00"
+        occupancy_fraction: 0.10
+      - start: "13:00"
+        end: "17:00"
+        occupancy_fraction: 0.75
+
+  SCH-LAB-MORNING:
+    name: "Morning Lab Sessions"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "09:00"
+        end: "12:00"
+        occupancy_fraction: 0.90
+      - start: "14:00"
+        end: "16:00"
+        occupancy_fraction: 0.60
+
+  SCH-LAB-AFTERNOON:
+    name: "Afternoon Lab Sessions"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "13:00"
+        end: "17:00"
+        occupancy_fraction: 0.85
+      - start: "10:00"
+        end: "12:00"
+        occupancy_fraction: 0.50
+
+  SCH-OFFICE:
+    name: "Office Hours"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "09:00"
+        end: "17:30"
+        occupancy_fraction: 0.75
+
+  SCH-MEETING:
+    name: "Meeting Room"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "10:00"
+        end: "12:00"
+        occupancy_fraction: 0.60
+      - start: "14:00"
+        end: "16:00"
+        occupancy_fraction: 0.50
+
+  SCH-LIBRARY:
+    name: "Library Hours"
+    working_days: [1, 2, 3, 4, 5, 6]  # Mon-Sat
+    slots:
+      - start: "08:00"
+        end: "12:00"
+        occupancy_fraction: 0.40
+      - start: "12:00"
+        end: "14:00"
+        occupancy_fraction: 0.25
+      - start: "14:00"
+        end: "18:00"
+        occupancy_fraction: 0.55
+      - start: "18:00"
+        end: "21:00"
+        occupancy_fraction: 0.70
+
+  SCH-HOSTEL-COMMON:
+    name: "Hostel Common Area"
+    working_days: [1, 2, 3, 4, 5, 6, 7]  # Every day
+    slots:
+      - start: "06:00"
+        end: "09:00"
+        occupancy_fraction: 0.50
+      - start: "09:00"
+        end: "17:00"
+        occupancy_fraction: 0.15
+      - start: "17:00"
+        end: "22:00"
+        occupancy_fraction: 0.65
+      - start: "22:00"
+        end: "23:59"
+        occupancy_fraction: 0.20
+
+  SCH-HOSTEL-UTILITY:
+    name: "Hostel Utility"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "23:59"
+        occupancy_fraction: 0.05
+
+  SCH-PUMP:
+    name: "Water Pump Schedule"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "05:00"
+        end: "08:00"
+        occupancy_fraction: 1.0
+      - start: "11:00"
+        end: "13:00"
+        occupancy_fraction: 1.0
+      - start: "17:00"
+        end: "19:00"
+        occupancy_fraction: 1.0
+
+holidays:
+  - date: "2025-09-07"
+    name: "Foundation Day"
+  - date: "2025-09-15"
+    name: "Independence Day Observed"
+  - date: "2025-09-21"
+    name: "University Sports Day"
+
+weather:
+  base_temperature_c: 32.0
+  daily_amplitude_c: 6.0
+  multi_day_amplitude_c: 3.0
+  multi_day_period_days: 7
+  peak_hour: 15
+  base_humidity_pct: 70.0
+  humidity_amplitude_pct: 15.0
+  noise_std_temperature_c: 0.5
+  noise_std_humidity_pct: 2.0
+
+sensor:
+  noise_power_fraction: 0.02
+  noise_voltage_std_v: 1.5
+  noise_current_fraction: 0.02
+  noise_pf_std: 0.01
+  noise_flow_fraction: 0.03
+  noise_temperature_std_c: 0.3
+  nominal_voltage_v: 230.0
+  nominal_power_factor: 0.85
+
+replay:
+  default_speed: 360  # 1 simulated hour = 10 real seconds
+  batch_size: 50
