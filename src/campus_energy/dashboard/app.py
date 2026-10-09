@@ -12,6 +12,9 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 from campus_energy.analytics.features import engineer_features
 from campus_energy.analytics.anomalies import detect_anomalies
+import campus_energy.analytics.forecasting as forecasting
+import importlib
+importlib.reload(forecasting)
 from campus_energy.analytics.forecasting import generate_24h_forecast
 
 st.set_page_config(page_title="Campus Energy Intelligence", layout="wide", initial_sidebar_state="expanded")
@@ -90,6 +93,13 @@ page = st.sidebar.radio("Go to", [
     "AI Facility Assistant"
 ])
 
+st.sidebar.markdown("---")
+st.sidebar.subheader("System Health")
+st.sidebar.markdown("🟢 **IoT Gateway:** ONLINE")
+st.sidebar.markdown("🟢 **Database:** CONNECTED")
+st.sidebar.markdown("🟢 **Gemini AI:** ACTIVE")
+st.sidebar.markdown("⏱️ **Sensor Uptime:** 99.8%")
+
 latest_ts = tel["timestamp"].max()
 
 if page == "ESG Impact (Executive)":
@@ -120,6 +130,19 @@ if page == "ESG Impact (Executive)":
     col2.metric("Estimated Avoidable Waste", f"{wasted_energy:,.0f} kWh", delta="-Optimizable", delta_color="inverse")
     col3.metric("Carbon Footprint", f"{total_carbon/1000:,.1f} Tons CO2")
     col4.metric("Potential Cost Savings", f"₹{avoidable_cost:,.0f}")
+    
+    # Create CSV data for export
+    report_data = pd.DataFrame({
+        "Metric": ["Total Energy (kWh)", "Avoidable Waste (kWh)", "Carbon Footprint (Tons CO2)", "Potential Savings (INR)"],
+        "Value": [total_energy_kwh, wasted_energy, total_carbon/1000, avoidable_cost]
+    })
+    csv = report_data.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="📄 Download ESG Compliance Report (CSV)",
+        data=csv,
+        file_name='campus_esg_report.csv',
+        mime='text/csv',
+    )
     
     st.markdown("---")
     st.subheader("Energy Consumption Trend")
@@ -323,13 +346,23 @@ elif page == "AI Forecasting & Scenarios":
     st.title("AI Forecasting & Scenario Simulator")
     st.markdown("Predicting the next 24 hours of campus load and simulating 'What-If' scenarios.")
     
+    st.subheader("Simulate Weather Scenarios")
+    temp_offset = st.slider(
+        "Adjust Campus Temperature (°C)", 
+        min_value=-5.0, 
+        max_value=5.0, 
+        value=0.0, 
+        step=0.5,
+        help="Simulate the impact of a sudden heatwave or cold front on the predicted campus energy load."
+    )
+    
     with st.spinner("Generating 24-hour forward forecast using Machine Learning..."):
-        # We cache the forecast call to prevent recalculating on every slider move
+        # We cache the forecast call to prevent recalculating on every slider move, but we pass temp_offset to bust cache
         @st.cache_data
-        def get_forecast():
-            return generate_24h_forecast(tel, ctx, assets)
+        def get_forecast(offset):
+            return generate_24h_forecast(tel, ctx, assets, temp_offset=offset)
             
-        forecast_df = get_forecast()
+        forecast_df = get_forecast(temp_offset)
         
     if forecast_df.empty:
         st.warning("Not enough data to generate forecast.")

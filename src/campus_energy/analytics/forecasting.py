@@ -5,7 +5,7 @@ import numpy as np
 from campus_energy.analytics.baseline import ExpectedConsumptionModel
 from campus_energy.analytics.features import engineer_features
 
-def generate_24h_forecast(telemetry_df: pd.DataFrame, context_df: pd.DataFrame, assets_df: pd.DataFrame) -> pd.DataFrame:
+def generate_24h_forecast(telemetry_df: pd.DataFrame, context_df: pd.DataFrame, assets_df: pd.DataFrame, temp_offset: float = 0.0) -> pd.DataFrame:
     """Predict the next 24 hours of campus energy load.
     
     In a real scenario, this would use Prophet and a weather forecast API.
@@ -62,13 +62,13 @@ def generate_24h_forecast(telemetry_df: pd.DataFrame, context_df: pd.DataFrame, 
         future_df["day_of_week"] = future_df["timestamp"].dt.dayofweek
         future_df["asset_id"] = meter_id
         
-        # Mock weather forecast (just repeat yesterday's weather)
+        # Mock weather forecast (just repeat yesterday's weather + offset)
         yesterday_weather = campus_weather[(campus_weather["timestamp"] > latest_ts - timedelta(days=1)) & (campus_weather["timestamp"] <= latest_ts)]
         # ensure alignment
         if len(yesterday_weather) == 288:
-            future_df["outdoor_temperature_c"] = yesterday_weather["outdoor_temperature_c"].values
+            future_df["outdoor_temperature_c"] = yesterday_weather["outdoor_temperature_c"].values + temp_offset
         else:
-            future_df["outdoor_temperature_c"] = 32.0 # fallback
+            future_df["outdoor_temperature_c"] = 32.0 + temp_offset
             
         future_df["occupancy"] = 0
         
