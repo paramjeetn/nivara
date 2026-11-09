@@ -1,0 +1,312 @@
+# Government Office Complex — Simulation Configuration
+# Mon-Fri 9-5 ops, strong weekend phantom load problem, meeting rooms, public counters
+
+simulation:
+  start_date: "2025-09-01T00:00:00+05:30"
+  end_date: "2025-09-29T00:00:00+05:30"
+  interval_minutes: 5
+  timezone: "Asia/Kolkata"
+  seed: 202
+  version: "1.0.0"
+
+campus:
+  name: "Collectorate Office Complex"
+  location: "Bhubaneswar, Odisha, India"
+  facility_type: "govt_office"
+  floor_area_m2: 5200
+  peak_occupancy: 350
+
+buildings:
+  - id: "BLD-MAIN"
+    name: "Main Collectorate Building"
+    type: "office"
+    floors: 3
+    zones:
+      - id: "BLD-MAIN-GF"
+        name: "Ground Floor — Public Service Counter"
+        type: "public_counter"
+        floor: 1
+        capacity: 60
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-MAIN-GF-LT"
+            type: "lighting"
+            name: "Counter Hall Lights"
+            rated_power_kw: 3.0
+            equipment_count: 30
+            unit_power_kw: 0.1
+          - id: "EQ-MAIN-GF-AC"
+            type: "hvac"
+            name: "Counter Hall HVAC"
+            rated_power_kw: 8.0
+            equipment_count: 4
+            unit_power_kw: 2.0
+          - id: "EQ-MAIN-GF-PC"
+            type: "computer_lab"
+            name: "Service Terminals"
+            rated_power_kw: 2.0
+            equipment_count: 10
+            unit_power_kw: 0.2
+      - id: "BLD-MAIN-OF1"
+        name: "First Floor — Revenue Dept Offices"
+        type: "office"
+        floor: 2
+        capacity: 40
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-MAIN-OF1-LT"
+            type: "lighting"
+            name: "Office Floor 1 Lights"
+            rated_power_kw: 2.4
+            equipment_count: 24
+            unit_power_kw: 0.1
+          - id: "EQ-MAIN-OF1-AC"
+            type: "hvac"
+            name: "Office Floor 1 HVAC"
+            rated_power_kw: 10.0
+            equipment_count: 5
+            unit_power_kw: 2.0
+          - id: "EQ-MAIN-OF1-PC"
+            type: "computer_lab"
+            name: "Staff Computers"
+            rated_power_kw: 3.0
+            equipment_count: 20
+            unit_power_kw: 0.15
+      - id: "BLD-MAIN-OF2"
+        name: "Second Floor — Administration"
+        type: "office"
+        floor: 3
+        capacity: 30
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-MAIN-OF2-LT"
+            type: "lighting"
+            name: "Admin Floor Lights"
+            rated_power_kw: 2.0
+            equipment_count: 20
+            unit_power_kw: 0.1
+          - id: "EQ-MAIN-OF2-AC"
+            type: "hvac"
+            name: "Admin Floor HVAC"
+            rated_power_kw: 8.0
+            equipment_count: 4
+            unit_power_kw: 2.0
+          - id: "EQ-MAIN-OF2-PC"
+            type: "computer_lab"
+            name: "Admin Workstations"
+            rated_power_kw: 2.25
+            equipment_count: 15
+            unit_power_kw: 0.15
+      - id: "BLD-MAIN-MR"
+        name: "Conference Room"
+        type: "meeting_room"
+        floor: 2
+        capacity: 30
+        schedule_id: "SCH-MEETING"
+        equipment:
+          - id: "EQ-MAIN-MR-LT"
+            type: "lighting"
+            name: "Conference Room Lights"
+            rated_power_kw: 1.5
+            equipment_count: 15
+            unit_power_kw: 0.1
+          - id: "EQ-MAIN-MR-AC"
+            type: "hvac"
+            name: "Conference Room HVAC"
+            rated_power_kw: 5.0
+            equipment_count: 2
+            unit_power_kw: 2.5
+    base_load_kw: 3.5
+
+  - id: "BLD-ANN"
+    name: "Annexe Building"
+    type: "office"
+    floors: 2
+    zones:
+      - id: "BLD-ANN-OF1"
+        name: "Planning Department"
+        type: "office"
+        floor: 1
+        capacity: 25
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-ANN-OF1-LT"
+            type: "lighting"
+            name: "Planning Dept Lights"
+            rated_power_kw: 1.5
+            equipment_count: 15
+            unit_power_kw: 0.1
+          - id: "EQ-ANN-OF1-AC"
+            type: "hvac"
+            name: "Planning Dept HVAC"
+            rated_power_kw: 5.0
+            equipment_count: 2
+            unit_power_kw: 2.5
+          - id: "EQ-ANN-OF1-PC"
+            type: "computer_lab"
+            name: "Planning Workstations"
+            rated_power_kw: 1.875
+            equipment_count: 15
+            unit_power_kw: 0.125
+      - id: "BLD-ANN-SR"
+        name: "Record Storage Room"
+        type: "storage"
+        floor: 2
+        capacity: 5
+        schedule_id: "SCH-RECORD"
+        equipment:
+          - id: "EQ-ANN-SR-LT"
+            type: "lighting"
+            name: "Storage Room Lights"
+            rated_power_kw: 0.6
+            equipment_count: 6
+            unit_power_kw: 0.1
+          - id: "EQ-ANN-SR-AC"
+            type: "hvac"
+            name: "Storage Climate Control"
+            rated_power_kw: 2.0
+            equipment_count: 1
+            unit_power_kw: 2.0
+    base_load_kw: 2.0
+
+  - id: "BLD-DATA"
+    name: "Data Centre / Server Room"
+    type: "data_centre"
+    floors: 1
+    zones:
+      - id: "BLD-DATA-SR"
+        name: "Server Room"
+        type: "server_room"
+        floor: 1
+        capacity: 5
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-DATA-SR-LT"
+            type: "lighting"
+            name: "Server Room Lights"
+            rated_power_kw: 0.4
+            equipment_count: 4
+            unit_power_kw: 0.1
+          - id: "EQ-DATA-SR-AC"
+            type: "hvac"
+            name: "Precision Cooling Unit"
+            rated_power_kw: 10.0
+            equipment_count: 2
+            unit_power_kw: 5.0
+          - id: "EQ-DATA-SR-PC"
+            type: "computer_lab"
+            name: "Government Servers"
+            rated_power_kw: 15.0
+            equipment_count: 10
+            unit_power_kw: 1.5
+    base_load_kw: 2.0
+
+  - id: "BLD-UTL-G"
+    name: "Utility Block"
+    type: "utility"
+    floors: 1
+    zones:
+      - id: "BLD-UTL-G-P1"
+        name: "Water Pump Room"
+        type: "pump_room"
+        floor: 1
+        capacity: 2
+        schedule_id: "SCH-PUMP"
+        equipment:
+          - id: "EQ-UTL-G-P1-PM"
+            type: "pump"
+            name: "Campus Water Pump"
+            rated_power_kw: 5.5
+            equipment_count: 1
+            unit_power_kw: 5.5
+            flow_rated_lpm: 400
+    base_load_kw: 1.0
+
+schedules:
+  SCH-OFFICE:
+    name: "Government Office Hours"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "09:00"
+        end: "13:00"
+        occupancy_fraction: 0.85
+      - start: "13:00"
+        end: "14:00"
+        occupancy_fraction: 0.20
+      - start: "14:00"
+        end: "17:30"
+        occupancy_fraction: 0.80
+
+  SCH-MEETING:
+    name: "Meeting Room Schedule"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "10:00"
+        end: "12:00"
+        occupancy_fraction: 0.65
+      - start: "14:00"
+        end: "16:00"
+        occupancy_fraction: 0.55
+
+  SCH-24HR:
+    name: "24x7 Server Room"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "23:59"
+        occupancy_fraction: 0.90
+
+  SCH-RECORD:
+    name: "Record Room Access"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "10:00"
+        end: "16:00"
+        occupancy_fraction: 0.30
+
+  SCH-PUMP:
+    name: "Water Pump Schedule"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "06:00"
+        end: "09:00"
+        occupancy_fraction: 1.0
+      - start: "12:00"
+        end: "14:00"
+        occupancy_fraction: 1.0
+      - start: "17:00"
+        end: "19:00"
+        occupancy_fraction: 1.0
+
+holidays:
+  - date: "2025-09-07"
+    name: "Gandhi Jayanti Observed"
+  - date: "2025-09-15"
+    name: "Independence Day Observed"
+  - date: "2025-09-21"
+    name: "State Foundation Day"
+
+weather:
+  base_temperature_c: 33.0
+  daily_amplitude_c: 6.0
+  multi_day_amplitude_c: 2.5
+  multi_day_period_days: 7
+  peak_hour: 14
+  base_humidity_pct: 68.0
+  humidity_amplitude_pct: 14.0
+  noise_std_temperature_c: 0.5
+  noise_std_humidity_pct: 2.0
+
+sensor:
+  noise_power_fraction: 0.02
+  noise_voltage_std_v: 1.5
+  noise_current_fraction: 0.02
+  noise_pf_std: 0.01
+  noise_flow_fraction: 0.03
+  noise_temperature_std_c: 0.3
+  nominal_voltage_v: 230.0
+  nominal_power_factor: 0.85
+
+replay:
+  default_speed: 360
+  batch_size: 50

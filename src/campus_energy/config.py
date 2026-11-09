@@ -96,6 +96,9 @@ class ReplayConfig(BaseModel):
 class CampusConfig(BaseModel):
     name: str
     location: str
+    facility_type: str = "university"
+    floor_area_m2: float = 10000.0
+    peak_occupancy: int = 500
 
 
 class SimulationConfig(BaseModel):

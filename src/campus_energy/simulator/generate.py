@@ -48,6 +48,7 @@ def main():
     events_path = output_dir / "events.csv"
     gt_path = output_dir / "anomaly_ground_truth.csv"
     complaints_path = output_dir / "complaints.csv"
+    water_path = output_dir / "water.csv"
     
     assets_df.to_csv(assets_path, index=False)
     tel_df.to_csv(telemetry_path, index=False)
@@ -60,6 +61,12 @@ def main():
     complaints_df = generate_complaints(events_df, assets_df, config.simulation.seed)
     complaints_df.to_csv(complaints_path, index=False)
     logger.info(f"Generated {len(complaints_df)} NLP complaints")
+
+    # Generate water consumption and leak telemetry
+    from campus_energy.simulator.water import generate_water_data
+    water_df = generate_water_data(assets_df, seed=config.simulation.seed)
+    water_df.to_csv(water_path, index=False)
+    logger.info(f"Generated {len(water_df)} water meter readings")
     
     logger.info("Saved all CSV files")
     
@@ -76,6 +83,7 @@ def main():
             "assets": len(assets_df),
             "telemetry": len(telemetry_df),
             "context": len(context_df),
+            "water": len(water_df),
         }
     }
     

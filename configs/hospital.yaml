@@ -1,0 +1,332 @@
+# District Hospital — Simulation Configuration
+# 24x7 operations, critical loads, cold chain, OT, ICU
+
+simulation:
+  start_date: "2025-09-01T00:00:00+05:30"
+  end_date: "2025-09-29T00:00:00+05:30"
+  interval_minutes: 5
+  timezone: "Asia/Kolkata"
+  seed: 101
+  version: "1.0.0"
+
+campus:
+  name: "Rajiv Gandhi District Hospital"
+  location: "Cuttack, Odisha, India"
+  facility_type: "hospital"
+  floor_area_m2: 8500
+  total_beds: 300
+  peak_occupancy: 420
+
+buildings:
+  - id: "BLD-OPD"
+    name: "OPD Block"
+    type: "outpatient"
+    floors: 2
+    zones:
+      - id: "BLD-OPD-WR1"
+        name: "Waiting Room 1"
+        type: "waiting_area"
+        floor: 1
+        capacity: 80
+        schedule_id: "SCH-OPD-HOURS"
+        equipment:
+          - id: "EQ-OPD-WR1-LT"
+            type: "lighting"
+            name: "Waiting Room Lights"
+            rated_power_kw: 2.4
+            equipment_count: 24
+            unit_power_kw: 0.1
+          - id: "EQ-OPD-WR1-AC"
+            type: "hvac"
+            name: "Waiting Room HVAC"
+            rated_power_kw: 6.0
+            equipment_count: 3
+            unit_power_kw: 2.0
+      - id: "BLD-OPD-DR1"
+        name: "Consultation Rooms"
+        type: "consultation"
+        floor: 1
+        capacity: 20
+        schedule_id: "SCH-OPD-HOURS"
+        equipment:
+          - id: "EQ-OPD-DR1-LT"
+            type: "lighting"
+            name: "Consultation Room Lights"
+            rated_power_kw: 1.5
+            equipment_count: 15
+            unit_power_kw: 0.1
+          - id: "EQ-OPD-DR1-AC"
+            type: "hvac"
+            name: "Consultation Room AC"
+            rated_power_kw: 4.5
+            equipment_count: 3
+            unit_power_kw: 1.5
+          - id: "EQ-OPD-DR1-EQ"
+            type: "computer_lab"
+            name: "Medical Workstations"
+            rated_power_kw: 1.5
+            equipment_count: 10
+            unit_power_kw: 0.15
+      - id: "BLD-OPD-LAB"
+        name: "Pathology Lab"
+        type: "lab"
+        floor: 2
+        capacity: 15
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-OPD-LAB-LT"
+            type: "lighting"
+            name: "Lab Lights"
+            rated_power_kw: 1.8
+            equipment_count: 18
+            unit_power_kw: 0.1
+          - id: "EQ-OPD-LAB-AC"
+            type: "hvac"
+            name: "Lab Precision AC"
+            rated_power_kw: 5.0
+            equipment_count: 2
+            unit_power_kw: 2.5
+          - id: "EQ-OPD-LAB-EQ"
+            type: "computer_lab"
+            name: "Lab Analyzers"
+            rated_power_kw: 3.5
+            equipment_count: 7
+            unit_power_kw: 0.5
+    base_load_kw: 3.0
+
+  - id: "BLD-IPD"
+    name: "Inpatient Ward"
+    type: "inpatient"
+    floors: 3
+    zones:
+      - id: "BLD-IPD-GW1"
+        name: "General Ward A"
+        type: "ward"
+        floor: 1
+        capacity: 50
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-IPD-GW1-LT"
+            type: "lighting"
+            name: "Ward A Lights"
+            rated_power_kw: 2.0
+            equipment_count: 20
+            unit_power_kw: 0.1
+          - id: "EQ-IPD-GW1-AC"
+            type: "hvac"
+            name: "Ward A HVAC"
+            rated_power_kw: 8.0
+            equipment_count: 4
+            unit_power_kw: 2.0
+      - id: "BLD-IPD-ICU"
+        name: "ICU"
+        type: "icu"
+        floor: 2
+        capacity: 12
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-IPD-ICU-LT"
+            type: "lighting"
+            name: "ICU Lights (High CRI)"
+            rated_power_kw: 1.2
+            equipment_count: 12
+            unit_power_kw: 0.1
+          - id: "EQ-IPD-ICU-AC"
+            type: "hvac"
+            name: "ICU Precision HVAC"
+            rated_power_kw: 10.0
+            equipment_count: 4
+            unit_power_kw: 2.5
+          - id: "EQ-IPD-ICU-EQ"
+            type: "computer_lab"
+            name: "ICU Life Support & Monitors"
+            rated_power_kw: 6.0
+            equipment_count: 12
+            unit_power_kw: 0.5
+      - id: "BLD-IPD-CCR"
+        name: "Cold Chain Room (Vaccines & Blood Bank)"
+        type: "cold_storage"
+        floor: 1
+        capacity: 5
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-IPD-CCR-LT"
+            type: "lighting"
+            name: "Cold Chain Room Lights"
+            rated_power_kw: 0.4
+            equipment_count: 4
+            unit_power_kw: 0.1
+          - id: "EQ-IPD-CCR-AC"
+            type: "hvac"
+            name: "Cold Chain Refrigeration Units"
+            rated_power_kw: 8.0
+            equipment_count: 4
+            unit_power_kw: 2.0
+    base_load_kw: 8.0
+
+  - id: "BLD-OT"
+    name: "Operation Theatre Block"
+    type: "surgical"
+    floors: 1
+    zones:
+      - id: "BLD-OT-OT1"
+        name: "Operation Theatre 1"
+        type: "operation_theatre"
+        floor: 1
+        capacity: 10
+        schedule_id: "SCH-OT"
+        equipment:
+          - id: "EQ-OT-OT1-LT"
+            type: "lighting"
+            name: "OT Surgical Lights"
+            rated_power_kw: 3.0
+            equipment_count: 6
+            unit_power_kw: 0.5
+          - id: "EQ-OT-OT1-AC"
+            type: "hvac"
+            name: "OT Laminar Flow HVAC"
+            rated_power_kw: 15.0
+            equipment_count: 3
+            unit_power_kw: 5.0
+          - id: "EQ-OT-OT1-EQ"
+            type: "computer_lab"
+            name: "OT Equipment (Anesthesia, Monitors)"
+            rated_power_kw: 5.0
+            equipment_count: 5
+            unit_power_kw: 1.0
+      - id: "BLD-OT-RC"
+        name: "Recovery Room"
+        type: "recovery"
+        floor: 1
+        capacity: 15
+        schedule_id: "SCH-OT"
+        equipment:
+          - id: "EQ-OT-RC-LT"
+            type: "lighting"
+            name: "Recovery Room Lights"
+            rated_power_kw: 1.2
+            equipment_count: 12
+            unit_power_kw: 0.1
+          - id: "EQ-OT-RC-AC"
+            type: "hvac"
+            name: "Recovery Room HVAC"
+            rated_power_kw: 6.0
+            equipment_count: 3
+            unit_power_kw: 2.0
+    base_load_kw: 5.0
+
+  - id: "BLD-UTL-H"
+    name: "Hospital Utility Block"
+    type: "utility"
+    floors: 1
+    zones:
+      - id: "BLD-UTL-H-P1"
+        name: "Water & Sterilization Pumps"
+        type: "pump_room"
+        floor: 1
+        capacity: 3
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-UTL-H-P1-PM"
+            type: "pump"
+            name: "Hospital Water Pump"
+            rated_power_kw: 11.0
+            equipment_count: 1
+            unit_power_kw: 11.0
+            flow_rated_lpm: 800
+      - id: "BLD-UTL-H-GEN"
+        name: "DG Set Room"
+        type: "generator"
+        floor: 1
+        capacity: 2
+        schedule_id: "SCH-24HR"
+        equipment:
+          - id: "EQ-UTL-H-GEN-DG"
+            type: "computer_lab"
+            name: "DG Set (standby load monitoring)"
+            rated_power_kw: 2.0
+            equipment_count: 1
+            unit_power_kw: 2.0
+    base_load_kw: 4.0
+
+schedules:
+  SCH-OPD-HOURS:
+    name: "OPD Working Hours"
+    working_days: [1, 2, 3, 4, 5, 6]
+    slots:
+      - start: "08:00"
+        end: "13:00"
+        occupancy_fraction: 0.90
+      - start: "13:00"
+        end: "14:00"
+        occupancy_fraction: 0.30
+      - start: "14:00"
+        end: "17:00"
+        occupancy_fraction: 0.70
+
+  SCH-24HR:
+    name: "24x7 Operation"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "07:59"
+        occupancy_fraction: 0.60
+      - start: "08:00"
+        end: "19:59"
+        occupancy_fraction: 0.95
+      - start: "20:00"
+        end: "23:59"
+        occupancy_fraction: 0.70
+
+  SCH-OT:
+    name: "Operation Theatre Schedule"
+    working_days: [1, 2, 3, 4, 5, 6]
+    slots:
+      - start: "08:00"
+        end: "14:00"
+        occupancy_fraction: 0.90
+      - start: "14:00"
+        end: "18:00"
+        occupancy_fraction: 0.50
+      - start: "00:00"
+        end: "07:59"
+        occupancy_fraction: 0.20  # Emergency OTs
+
+  SCH-PUMP:
+    name: "Water Pump Schedule"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "23:59"
+        occupancy_fraction: 0.80
+
+holidays:
+  - date: "2025-09-07"
+    name: "Gandhi Jayanti Observed"
+  - date: "2025-09-15"
+    name: "Independence Day Observed"
+
+weather:
+  base_temperature_c: 32.0
+  daily_amplitude_c: 5.0
+  multi_day_amplitude_c: 2.5
+  multi_day_period_days: 7
+  peak_hour: 15
+  base_humidity_pct: 72.0
+  humidity_amplitude_pct: 12.0
+  noise_std_temperature_c: 0.5
+  noise_std_humidity_pct: 2.0
+
+sensor:
+  noise_power_fraction: 0.02
+  noise_voltage_std_v: 1.5
+  noise_current_fraction: 0.02
+  noise_pf_std: 0.01
+  noise_flow_fraction: 0.03
+  noise_temperature_std_c: 0.3
+  nominal_voltage_v: 230.0
+  nominal_power_factor: 0.85
+
+replay:
+  default_speed: 360
+  batch_size: 50

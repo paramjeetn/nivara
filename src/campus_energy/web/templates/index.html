@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BPUT Energy Intelligence Platform</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { darkbg: '#0F172A', cardbg: '#1E293B', primary: '#38BDF8', accent: '#10B981' } } }
+        }
+    </script>
+    <!-- Mapbox GL JS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.0.0/mapbox-gl.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0F172A; color: #F8FAFC; overflow: hidden; }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; }
+        .sidebar-item { transition: all 0.2s; cursor: pointer; }
+        .sidebar-item:hover { background-color: rgba(56, 189, 248, 0.1); color: #38BDF8; }
+        .sidebar-item.active { background-color: rgba(56, 189, 248, 0.2); color: #38BDF8; border-right: 3px solid #38BDF8; }
+        #map { width: 100%; height: 100%; border-radius: 12px; }
+        .tab-content { display: none; height: 100%; overflow-y: auto; }
+        .tab-content.active { display: flex; flex-direction: column; }
+        .pulse-dot { width: 12px; height: 12px; border-radius: 50%; background-color: #10B981; box-shadow: 0 0 10px #10B981; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body class="h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="glass-card m-4 px-6 py-4 flex justify-between items-center z-10 shrink-0">
+        <div class="flex items-center space-x-4">
+            <div class="text-3xl text-primary"><i class="fa-solid fa-bolt-lightning"></i></div>
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">BPUT Energy Command Center</h1>
+                <p class="text-xs text-slate-400">Enterprise AI Infrastructure</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-6">
+            <div class="flex items-center space-x-2">
+                <div class="pulse-dot"></div>
+                <span class="text-sm font-medium text-slate-300">System Online</span>
+            </div>
+            <button class="bg-slate-800 hover:bg-slate-700 border border-slate-600 px-4 py-2 rounded-md text-sm transition-colors duration-200" onclick="fetchAllData()">
+                <i class="fa-solid fa-rotate-right mr-2"></i> Sync
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Body -->
+    <div class="flex flex-1 overflow-hidden px-4 pb-4 space-x-4 relative z-10">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 glass-card p-4 flex flex-col space-y-2 shrink-0">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-2">Navigation</div>
+            
+            <div class="sidebar-item active p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-map')">
+                <i class="fa-solid fa-map-location-dot w-5 text-center"></i> <span>3D Campus Map</span>
+            </div>
+            <div class="sidebar-item p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-esg')">
+                <i class="fa-solid fa-leaf w-5 text-center"></i> <span>ESG Impact</span>
+            </div>
+            <div class="sidebar-item p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-microgrid')">
+                <i class="fa-solid fa-solar-panel w-5 text-center"></i> <span>Microgrid Dispatch</span>
+            </div>
+            <div class="sidebar-item p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-billing')">
+                <i class="fa-solid fa-file-invoice-dollar w-5 text-center"></i> <span>Dept Billing</span>
+            </div>
+            <div class="sidebar-item p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-alerts')">
+                <i class="fa-solid fa-triangle-exclamation w-5 text-center"></i> <span>NLP Alerts</span>
+            </div>
+            <div class="sidebar-item p-3 rounded-lg flex items-center space-x-3" onclick="switchTab('tab-assistant')">
+                <i class="fa-solid fa-robot w-5 text-center"></i> <span>AI Assistant</span>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="flex-1 glass-card p-4 relative">
+            
+            <!-- Tab: 3D MAP -->
+            <div id="tab-map" class="tab-content active h-full flex flex-row space-x-4">
+                <div class="w-1/3 flex flex-col space-y-4">
+                    <h2 class="text-xl font-bold"><i class="fa-solid fa-map-location-dot mr-2 text-primary"></i> Live Heatmap</h2>
+                    <div class="grid grid-cols-2 gap-2">
+                        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                            <div class="text-slate-400 text-xs">Total Load</div>
+                            <div class="text-xl font-bold" id="kpi-load">--- kW</div>
+                        </div>
+                        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                            <div class="text-slate-400 text-xs">Avg Temp</div>
+                            <div class="text-xl font-bold" id="kpi-temp">--- °C</div>
+                        </div>
+                    </div>
+                    <div class="flex-1 bg-slate-800 rounded-lg border border-slate-700 p-4">
+                        <h3 class="text-sm font-semibold mb-2">24-Hour Profile</h3>
+                        <div class="relative w-full h-[calc(100%-2rem)]">
+                            <canvas id="loadChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="w-2/3 h-full relative rounded-lg overflow-hidden border border-slate-700">
+                    <div id="map"></div>
+                </div>
+            </div>
+
+            <!-- Tab: ESG -->
+            <div id="tab-esg" class="tab-content">
+                <h2 class="text-xl font-bold mb-4"><i class="fa-solid fa-leaf mr-2 text-accent"></i> ESG & Executive Impact</h2>
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
+                        <div class="text-slate-400 text-sm">Total Energy</div>
+                        <div class="text-2xl font-bold mt-2" id="esg-total">---</div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 relative overflow-hidden">
+                        <div class="absolute right-[-10px] top-[-10px] text-5xl opacity-10"><i class="fa-solid fa-trash"></i></div>
+                        <div class="text-slate-400 text-sm">Avoidable Waste</div>
+                        <div class="text-2xl font-bold mt-2 text-rose-400" id="esg-waste">---</div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 relative overflow-hidden">
+                        <div class="absolute right-[-10px] top-[-10px] text-5xl opacity-10"><i class="fa-solid fa-cloud"></i></div>
+                        <div class="text-slate-400 text-sm">Carbon Footprint</div>
+                        <div class="text-2xl font-bold mt-2 text-amber-400" id="esg-carbon">---</div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 relative overflow-hidden">
+                        <div class="absolute right-[-10px] top-[-10px] text-5xl opacity-10"><i class="fa-solid fa-indian-rupee-sign"></i></div>
+                        <div class="text-slate-400 text-sm">Potential Savings</div>
+                        <div class="text-2xl font-bold mt-2 text-emerald-400" id="esg-savings">---</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Microgrid -->
+            <div id="tab-microgrid" class="tab-content">
+                <h2 class="text-xl font-bold mb-4"><i class="fa-solid fa-solar-panel mr-2 text-amber-400"></i> Microgrid Dispatch</h2>
+                <div class="flex-1 bg-slate-800 rounded-lg border border-slate-700 p-4 h-96">
+                    <canvas id="microgridChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tab: Billing -->
+            <div id="tab-billing" class="tab-content">
+                <h2 class="text-xl font-bold mb-4"><i class="fa-solid fa-file-invoice-dollar mr-2 text-emerald-400"></i> Department Chargebacks</h2>
+                <div class="flex space-x-6">
+                    <div class="w-1/2 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-900 border-b border-slate-700">
+                                <tr><th class="p-4">Department</th><th class="p-4">Energy (kWh)</th><th class="p-4">Cost (₹)</th></tr>
+                            </thead>
+                            <tbody id="billing-table" class="divide-y divide-slate-700">
+                                <!-- Populated via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="w-1/2 bg-slate-800 rounded-lg border border-slate-700 p-4">
+                        <canvas id="billingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Alerts -->
+            <div id="tab-alerts" class="tab-content">
+                <h2 class="text-xl font-bold mb-4"><i class="fa-solid fa-triangle-exclamation mr-2 text-rose-500"></i> NLP Complaints & Alerts</h2>
+                <div class="flex flex-col space-y-4" id="alerts-container">
+                    <!-- Populated via JS -->
+                </div>
+            </div>
+
+            <!-- Tab: Assistant -->
+            <div id="tab-assistant" class="tab-content">
+                <h2 class="text-xl font-bold mb-4"><i class="fa-solid fa-robot mr-2 text-indigo-400"></i> AI Facility Assistant</h2>
+                <div class="flex-1 bg-slate-800 rounded-lg border border-slate-700 p-6 flex flex-col justify-between">
+                    <div class="flex-1 overflow-y-auto mb-4 space-y-4 p-2" id="chat-window">
+                        <div class="flex gap-4">
+                            <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center"><i class="fa-solid fa-robot text-white"></i></div>
+                            <div class="bg-slate-700 p-3 rounded-lg text-sm max-w-2xl">Hello! I'm your facility AI. I can analyze telemetry, optimize HVAC, or explain anomalies. What do you need help with?</div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500" placeholder="Ask about energy anomalies...">
+                        <button class="bg-indigo-600 hover:bg-indigo-700 px-6 py-2 rounded-lg font-medium transition-colors">Send</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Background decorative blur -->
+    <div class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none"></div>
+
+    <script>
+        // Tab switching logic
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            
+            document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            // Resize charts if they are in the activated tab
+            if (tabId === 'tab-microgrid' && window.microgridChart) window.microgridChart.resize();
+            if (tabId === 'tab-billing' && window.billingChart) window.billingChart.resize();
+        }
+
+        // Common Chart Defaults
+        Chart.defaults.color = '#94A3B8';
+        Chart.defaults.font.family = 'Inter';
+        
+        // Load Chart
+        const ctxLoad = document.getElementById('loadChart').getContext('2d');
+        const loadChart = new Chart(ctxLoad, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Campus Load (kW)', data: [], borderColor: '#38BDF8', backgroundColor: 'rgba(56, 189, 248, 0.1)', fill: true, tension: 0.4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { grid: { color: '#334155' } } } }
+        });
+
+        // Billing Chart
+        const ctxBilling = document.getElementById('billingChart').getContext('2d');
+        window.billingChart = new Chart(ctxBilling, {
+            type: 'doughnut',
+            data: { labels: [], datasets: [{ data: [], backgroundColor: ['#38BDF8', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+        });
+
+        // Microgrid Chart
+        const ctxMicro = document.getElementById('microgridChart').getContext('2d');
+        window.microgridChart = new Chart(ctxMicro, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { y: { grid: { color: '#334155' } } } }
+        });
+
+        // Mapbox Setup
+        mapboxgl.accessToken = 'pk.eyJ1IjoicGFyYW1qZWV0LTM5MzkiLCJhIjoiY212MHRhN3N6MDhhNjJ5c2R3Y2c2YTRneiJ9.wa2xVeMKEKZVLkgwE667TQ';
+        const map = new mapboxgl.Map({
+            container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [84.8192, 22.2472], zoom: 16.5, pitch: 60, bearing: -15, antialias: true
+        });
+
+        let markers = [];
+        const CAMPUS_COORDS = { "MTR-BLD-A": [84.8185, 22.2480], "MTR-BLD-B": [84.8195, 22.2485], "MTR-BLD-ADM": [84.8192, 22.2472], "MTR-BLD-LIB": [84.8198, 22.2475], "MTR-BLD-HST": [84.8175, 22.2460], "MTR-BLD-UTL": [84.8210, 22.2465] };
+
+        map.on('style.load', () => {
+            const layers = map.getStyle().layers;
+            let labelLayerId;
+            for (let i = 0; i < layers.length; i++) { if (layers[i].type === 'symbol' && layers[i].layout['text-field']) { labelLayerId = layers[i].id; break; } }
+            map.addLayer({
+                'id': 'add-3d-buildings', 'source': 'composite', 'source-layer': 'building', 'filter': ['==', 'extrude', 'true'], 'type': 'fill-extrusion', 'minzoom': 14,
+                'paint': { 'fill-extrusion-color': '#1E293B', 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': ['get', 'min_height'], 'fill-extrusion-opacity': 0.8 }
+            }, labelLayerId);
+            fetchAllData();
+        });
+
+        async function fetchAllData() {
+            // Telemetry & Map
+            try {
+                const res = await fetch('/api/telemetry');
+                const data = await res.json();
+                if(!data.error) {
+                    document.getElementById('kpi-load').innerText = data.kpis.total_power_kw + ' kW';
+                    document.getElementById('kpi-temp').innerText = data.kpis.avg_temp_c + ' °C';
+                    
+                    markers.forEach(m => m.remove()); markers = [];
+                    data.buildings.forEach(bld => {
+                        const coords = CAMPUS_COORDS[bld.asset_id];
+                        if(coords) {
+                            let colorClass = bld.power_kw > 60 ? 'bg-rose-500 shadow-[0_0_15px_#F43F5E] animate-pulse' : (bld.power_kw > 30 ? 'bg-amber-400 shadow-[0_0_15px_#FBBF24]' : 'bg-emerald-500 shadow-[0_0_15px_#10B981]');
+                            const el = document.createElement('div'); el.className = `w-4 h-4 rounded-full border-2 border-white/80 ${colorClass} cursor-pointer`;
+                            const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`<div class="p-2 text-slate-800 font-bold">${bld.asset_id}<br>${bld.power_kw.toFixed(1)} kW</div>`);
+                            markers.push(new mapboxgl.Marker(el).setLngLat(coords).setPopup(popup).addTo(map));
+                        }
+                    });
+                }
+            } catch(e) {}
+
+            // History Chart
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                if(!data.error) {
+                    loadChart.data.labels = data.labels.map(d => d.split(' ')[1]);
+                    loadChart.data.datasets[0].data = data.values;
+                    loadChart.update();
+                }
+            } catch(e) {}
+
+            // ESG Data
+            try {
+                const res = await fetch('/api/esg');
+                const data = await res.json();
+                if(!data.error) {
+                    document.getElementById('esg-total').innerText = data.total_energy_kwh.toLocaleString(undefined, {maximumFractionDigits:0}) + ' kWh';
+                    document.getElementById('esg-waste').innerText = data.wasted_energy_kwh.toLocaleString(undefined, {maximumFractionDigits:0}) + ' kWh';
+                    document.getElementById('esg-carbon').innerText = data.carbon_tons.toLocaleString(undefined, {maximumFractionDigits:1}) + ' Tons';
+                    document.getElementById('esg-savings').innerText = '₹' + data.savings_inr.toLocaleString(undefined, {maximumFractionDigits:0});
+                }
+            } catch(e) {}
+
+            // Billing Data
+            try {
+                const res = await fetch('/api/billing');
+                const data = await res.json();
+                if(data.length) {
+                    let html = '';
+                    let labels = [], vals = [];
+                    data.forEach(d => {
+                        html += `<tr><td class="p-4 font-medium">${d.department}</td><td class="p-4 text-slate-300">${d.interval_energy_kwh.toFixed(1)}</td><td class="p-4 text-emerald-400 font-mono">₹${d.cost_inr.toFixed(2)}</td></tr>`;
+                        labels.push(d.department); vals.push(d.cost_inr);
+                    });
+                    document.getElementById('billing-table').innerHTML = html;
+                    window.billingChart.data.labels = labels;
+                    window.billingChart.data.datasets[0].data = vals;
+                    window.billingChart.update();
+                }
+            } catch(e) {}
+
+            // Alerts
+            try {
+                const res = await fetch('/api/alerts');
+                const data = await res.json();
+                if(data.events) {
+                    let html = '';
+                    data.events.forEach(ev => {
+                        let icon = ev.severity === 'critical' ? 'fa-fire text-rose-500' : 'fa-triangle-exclamation text-amber-500';
+                        html += `<div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex items-start space-x-4">
+                                    <div class="mt-1 text-xl"><i class="fa-solid ${icon}"></i></div>
+                                    <div>
+                                        <h4 class="font-bold text-white uppercase text-sm">${ev.event_type} <span class="text-slate-400 ml-2 normal-case font-normal">Asset: ${ev.asset_id}</span></h4>
+                                        <p class="text-sm text-slate-300 mt-1">${ev.description}</p>
+                                        <div class="mt-2 text-xs text-slate-500">Started: ${ev.start_time}</div>
+                                    </div>
+                                </div>`;
+                    });
+                    document.getElementById('alerts-container').innerHTML = html;
+                }
+            } catch(e) {}
+
+            // Microgrid
+            try {
+                const res = await fetch('/api/microgrid');
+                const data = await res.json();
+                if(data.length) {
+                    window.microgridChart.data = {
+                        labels: data.map(d => d.hour + ':00'),
+                        datasets: [
+                            { label: 'Campus Load', data: data.map(d => d.campus_load_kw), borderColor: '#EF4444', tension: 0.3 },
+                            { label: 'Solar Gen', data: data.map(d => d.solar_gen_kw), borderColor: '#F59E0B', tension: 0.3 },
+                            { label: 'Grid Import', data: data.map(d => d.grid_import_kw), borderColor: '#38BDF8', tension: 0.3 }
+                        ]
+                    };
+                    window.microgridChart.update();
+                }
+            } catch(e) {}
+        }
+    </script>
+</body>
+</html>

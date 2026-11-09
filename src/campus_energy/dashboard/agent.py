@@ -1,5 +1,7 @@
 import requests
 import json
+import re
+from datetime import datetime, timezone
 import pandas as pd
 from typing import List, Dict, Any
 
@@ -95,3 +97,53 @@ def chat_with_gemini(api_key: str, messages: List[Dict[str, str]], events_df: pd
         if response.status_code == 400:
              return f"Error connecting to Gemini API: {e}. Payload: {response.text}"
         return f"Error connecting to Gemini API: {e}"
+
+
+def parse_actions_from_response(response_text: str) -> list[dict]:
+    """Parse recommended actions from Gemini AI response text."""
+    if not response_text or not isinstance(response_text, str):
+        return []
+
+    asset_m = re.search(
+        r"\b(Building\s+[A-Za-z0-9]+|BLD-\w+|Block\s+\w+|CR\d+|Lab\s+\d+)\b",
+        response_text,
+        re.IGNORECASE,
+    )
+    target_asset = asset_m.group(1) if asset_m else "Campus-wide"
+
+    text_lower = response_text.lower()
+    if re.search(r"\b(immediately|urgent(?:ly)?)\b", text_lower):
+        suggested_time = "Immediately"
+    elif re.search(r"\b(after\s*hours|evening)\b", text_lower):
+        suggested_time = "After 18:00"
+    else:
+        suggested_time = "Next maintenance window"
+
+    kwh_m = re.search(r"(\d+(?:,\d+)*(?:\.\d+)?)\s*kwh\b", response_text, re.IGNORECASE)
+    estimated_kwh = float(kwh_m.group(1).replace(",", "")) if kwh_m else None
+    now_ts = datetime.now(timezone.utc).isoformat()
+
+    rules = [
+        (r"\b(shutdown|shutdowns|turn\s+off|switch\s+off)\b", "Equipment Shutdown"),
+        (r"\b(hvac|air\s+condition(?:ing)?|cooling)\b", "HVAC Inspection/Schedule"),
+        (r"\b(light|lights|lighting)\b", "Lighting Audit"),
+        (r"\b(pump|pumps|water|flow)\b", "Pump Maintenance"),
+        (r"\b(schedule|schedules|timetable|timetables|policy|policies)\b", "Schedule Optimisation"),
+        (r"\b(sensor|sensors|meter|meters|monitor|monitors|monitoring)\b", "Sensor Check"),
+        (r"\b(solar|renewable|renewables|microgrid|microgrids)\b", "Renewable Integration Review"),
+    ]
+
+    actions = []
+    seen = set()
+    for pattern, action_type in rules:
+        if re.search(pattern, response_text, re.IGNORECASE) and action_type not in seen:
+            seen.add(action_type)
+            actions.append({
+                "action_type": action_type,
+                "target_asset": target_asset,
+                "suggested_time": suggested_time,
+                "estimated_saving_kwh": estimated_kwh,
+                "status": "pending",
+                "detected_at": now_ts,
+            })
+    return actions

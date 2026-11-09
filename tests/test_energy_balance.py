@@ -58,10 +58,18 @@ def test_energy_balance(dataframes):
         eq_sum = eq_telemetry.groupby("timestamp")["power_kw"].sum()
         
         # Compare
-        # The difference should be the base load + some noise
-        # Just check that meter is strictly greater or roughly equal to sum of equipment
+        # The difference should be the base load + some noise.
+        # Exclude known anomalous injected periods where equipment power is artificially boosted
+        # to test sub-meter anomaly detection without meter reconciliation.
         joined = meter_telemetry[["power_kw"]].join(eq_sum, rsuffix="_eq").dropna()
         
+        events_path = DATA_DIR / "events.csv"
+        if events_path.exists():
+            events = pd.read_csv(events_path)
+            for _, evt in events.iterrows():
+                if evt["asset_id"] in equipment_ids:
+                    joined = joined.drop(index=joined.loc[evt["start_time"]:evt["end_time"]].index, errors="ignore")
+
         assert (joined["power_kw"] >= joined["power_kw_eq"] * 0.95).all(), f"Meter power less than equipment sum for {building_id}"
 
 def test_no_negative_values(dataframes):

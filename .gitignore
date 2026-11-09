@@ -9,9 +9,11 @@ build/
 .env
 venv/
 .venv/
-data/generated/*.csv
-data/generated/*.json
-data/manifests/*.json
+data/*/*.csv
+data/*/*.json
+data/university
+data/*.db
+data/*.sqlite
 *.db
 *.sqlite
 .pytest_cache/

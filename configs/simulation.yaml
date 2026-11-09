@@ -12,6 +12,9 @@ simulation:
 campus:
   name: "Vidya Institute of Technology"
   location: "Bhubaneswar, Odisha, India"
+  facility_type: "university"
+  floor_area_m2: 12000
+  peak_occupancy: 2500
 
 buildings:
   - id: "BLD-A"

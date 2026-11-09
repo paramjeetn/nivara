@@ -1,0 +1,261 @@
+# Industrial Campus — Simulation Configuration
+# 3-shift 24x7 manufacturing, compressors, heavy machinery, demand spikes
+
+simulation:
+  start_date: "2025-09-01T00:00:00+05:30"
+  end_date: "2025-09-29T00:00:00+05:30"
+  interval_minutes: 5
+  timezone: "Asia/Kolkata"
+  seed: 303
+  version: "1.0.0"
+
+campus:
+  name: "Kalinga Industrial Estate"
+  location: "Kalinganagar, Odisha, India"
+  facility_type: "industrial"
+  floor_area_m2: 18000
+  peak_occupancy: 600
+
+buildings:
+  - id: "BLD-PROD-A"
+    name: "Production Unit A"
+    type: "manufacturing"
+    floors: 1
+    zones:
+      - id: "BLD-PROD-A-MF1"
+        name: "Main Shop Floor — Assembly Line"
+        type: "manufacturing_floor"
+        floor: 1
+        capacity: 120
+        schedule_id: "SCH-SHIFT-ALL"
+        equipment:
+          - id: "EQ-PROD-A-MF1-LT"
+            type: "lighting"
+            name: "Shop Floor Industrial Lights"
+            rated_power_kw: 12.0
+            equipment_count: 60
+            unit_power_kw: 0.2
+          - id: "EQ-PROD-A-MF1-AC"
+            type: "hvac"
+            name: "Shop Floor Ventilation"
+            rated_power_kw: 15.0
+            equipment_count: 5
+            unit_power_kw: 3.0
+          - id: "EQ-PROD-A-MF1-EQ"
+            type: "computer_lab"
+            name: "Assembly Line Machines"
+            rated_power_kw: 60.0
+            equipment_count: 20
+            unit_power_kw: 3.0
+      - id: "BLD-PROD-A-COMP"
+        name: "Compressor Room"
+        type: "compressor_room"
+        floor: 1
+        capacity: 5
+        schedule_id: "SCH-SHIFT-ALL"
+        equipment:
+          - id: "EQ-PROD-A-COMP-CM"
+            type: "pump"
+            name: "Air Compressor 1"
+            rated_power_kw: 22.0
+            equipment_count: 1
+            unit_power_kw: 22.0
+            flow_rated_lpm: 2000
+          - id: "EQ-PROD-A-COMP-CM2"
+            type: "pump"
+            name: "Air Compressor 2 (Standby)"
+            rated_power_kw: 22.0
+            equipment_count: 1
+            unit_power_kw: 22.0
+            flow_rated_lpm: 2000
+    base_load_kw: 10.0
+
+  - id: "BLD-PROD-B"
+    name: "Production Unit B"
+    type: "manufacturing"
+    floors: 1
+    zones:
+      - id: "BLD-PROD-B-MF2"
+        name: "Welding and Fabrication Floor"
+        type: "manufacturing_floor"
+        floor: 1
+        capacity: 80
+        schedule_id: "SCH-SHIFT-DAY"
+        equipment:
+          - id: "EQ-PROD-B-MF2-LT"
+            type: "lighting"
+            name: "Fabrication Floor Lights"
+            rated_power_kw: 8.0
+            equipment_count: 40
+            unit_power_kw: 0.2
+          - id: "EQ-PROD-B-MF2-AC"
+            type: "hvac"
+            name: "Fume Extraction HVAC"
+            rated_power_kw: 20.0
+            equipment_count: 4
+            unit_power_kw: 5.0
+          - id: "EQ-PROD-B-MF2-EQ"
+            type: "computer_lab"
+            name: "Welding Machines & CNC"
+            rated_power_kw: 45.0
+            equipment_count: 15
+            unit_power_kw: 3.0
+    base_load_kw: 8.0
+
+  - id: "BLD-ADMIN-I"
+    name: "Administrative Block"
+    type: "office"
+    floors: 2
+    zones:
+      - id: "BLD-ADMIN-I-OF"
+        name: "Management Offices"
+        type: "office"
+        floor: 1
+        capacity: 30
+        schedule_id: "SCH-OFFICE"
+        equipment:
+          - id: "EQ-ADMIN-I-OF-LT"
+            type: "lighting"
+            name: "Office Lights"
+            rated_power_kw: 1.8
+            equipment_count: 18
+            unit_power_kw: 0.1
+          - id: "EQ-ADMIN-I-OF-AC"
+            type: "hvac"
+            name: "Office HVAC"
+            rated_power_kw: 6.0
+            equipment_count: 3
+            unit_power_kw: 2.0
+          - id: "EQ-ADMIN-I-OF-PC"
+            type: "computer_lab"
+            name: "Management Workstations"
+            rated_power_kw: 3.0
+            equipment_count: 20
+            unit_power_kw: 0.15
+      - id: "BLD-ADMIN-I-CTL"
+        name: "Control Room"
+        type: "control_room"
+        floor: 2
+        capacity: 10
+        schedule_id: "SCH-SHIFT-ALL"
+        equipment:
+          - id: "EQ-ADMIN-I-CTL-LT"
+            type: "lighting"
+            name: "Control Room Lights"
+            rated_power_kw: 0.6
+            equipment_count: 6
+            unit_power_kw: 0.1
+          - id: "EQ-ADMIN-I-CTL-AC"
+            type: "hvac"
+            name: "Control Room Precision HVAC"
+            rated_power_kw: 4.0
+            equipment_count: 2
+            unit_power_kw: 2.0
+          - id: "EQ-ADMIN-I-CTL-PC"
+            type: "computer_lab"
+            name: "SCADA Workstations"
+            rated_power_kw: 3.0
+            equipment_count: 10
+            unit_power_kw: 0.3
+    base_load_kw: 3.0
+
+  - id: "BLD-UTL-I"
+    name: "Industrial Utility Block"
+    type: "utility"
+    floors: 1
+    zones:
+      - id: "BLD-UTL-I-P1"
+        name: "Water & Coolant Pumps"
+        type: "pump_room"
+        floor: 1
+        capacity: 4
+        schedule_id: "SCH-SHIFT-ALL"
+        equipment:
+          - id: "EQ-UTL-I-P1-PM"
+            type: "pump"
+            name: "Industrial Coolant Pump"
+            rated_power_kw: 15.0
+            equipment_count: 1
+            unit_power_kw: 15.0
+            flow_rated_lpm: 1200
+          - id: "EQ-UTL-I-P2-PM"
+            type: "pump"
+            name: "Fire Sprinkler Pump (Standby)"
+            rated_power_kw: 11.0
+            equipment_count: 1
+            unit_power_kw: 11.0
+            flow_rated_lpm: 900
+    base_load_kw: 5.0
+
+schedules:
+  SCH-SHIFT-ALL:
+    name: "Three-Shift 24x7"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "07:59"
+        occupancy_fraction: 0.75   # Night shift
+      - start: "08:00"
+        end: "15:59"
+        occupancy_fraction: 0.95   # Day shift
+      - start: "16:00"
+        end: "23:59"
+        occupancy_fraction: 0.80   # Evening shift
+
+  SCH-SHIFT-DAY:
+    name: "Day Shift Only"
+    working_days: [1, 2, 3, 4, 5, 6]
+    slots:
+      - start: "08:00"
+        end: "16:00"
+        occupancy_fraction: 0.90
+
+  SCH-OFFICE:
+    name: "Administrative Hours"
+    working_days: [1, 2, 3, 4, 5]
+    slots:
+      - start: "09:00"
+        end: "13:00"
+        occupancy_fraction: 0.85
+      - start: "14:00"
+        end: "17:30"
+        occupancy_fraction: 0.80
+
+  SCH-PUMP:
+    name: "Pump Schedule"
+    working_days: [1, 2, 3, 4, 5, 6, 7]
+    slots:
+      - start: "00:00"
+        end: "23:59"
+        occupancy_fraction: 0.85
+
+holidays:
+  - date: "2025-09-07"
+    name: "Gandhi Jayanti Observed"
+  - date: "2025-09-15"
+    name: "Independence Day Observed"
+
+weather:
+  base_temperature_c: 33.5
+  daily_amplitude_c: 7.0
+  multi_day_amplitude_c: 3.0
+  multi_day_period_days: 7
+  peak_hour: 14
+  base_humidity_pct: 65.0
+  humidity_amplitude_pct: 15.0
+  noise_std_temperature_c: 0.6
+  noise_std_humidity_pct: 2.5
+
+sensor:
+  noise_power_fraction: 0.025
+  noise_voltage_std_v: 2.0
+  noise_current_fraction: 0.025
+  noise_pf_std: 0.015
+  noise_flow_fraction: 0.04
+  noise_temperature_std_c: 0.4
+  nominal_voltage_v: 415.0
+  nominal_power_factor: 0.80
+
+replay:
+  default_speed: 360
+  batch_size: 50
