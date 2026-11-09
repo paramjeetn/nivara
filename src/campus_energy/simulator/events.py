@@ -7,7 +7,8 @@ rather than using university-hardcoded IDs.
 import uuid
 import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from typing import Any, Union
 
 from campus_energy.schemas import EventType, Severity
 
@@ -184,3 +185,109 @@ def inject_events(
     gt_df = pd.DataFrame(ground_truth)
 
     return tel, events_df, gt_df
+
+
+def simulate_fault_resolution(
+    telemetry_df: pd.DataFrame,
+    event: Any,
+    resolution_time: datetime | str,
+    baseline_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Simulate operational resolution of a fault event post-maintenance dispatch.
+
+    Resets the faulty asset's consumption, operating state, and sensor telemetry
+    back to baseline levels starting at `resolution_time` through the end of the event period.
+
+    Args:
+        telemetry_df: Telemetry DataFrame containing active anomalous events/faults.
+        event: An Event schema, dict, Series, or asset identifier string.
+        resolution_time: Timestamp when maintenance completed physical repair / setback.
+        baseline_df: Normal baseline telemetry DataFrame before anomaly injection.
+
+    Returns:
+        Updated telemetry DataFrame with post-resolution telemetry restored to baseline.
+    """
+    tel = telemetry_df.copy()
+
+    # Extract asset_id and optional end_time from event representation
+    if hasattr(event, "asset_id"):
+        asset_id = str(event.asset_id)
+        end_time = getattr(event, "end_time", None)
+    elif isinstance(event, dict):
+        asset_id = str(event.get("asset_id", ""))
+        end_time = event.get("end_time")
+    elif isinstance(event, pd.Series):
+        asset_id = str(event.get("asset_id", ""))
+        end_time = event.get("end_time")
+    elif isinstance(event, str):
+        asset_id = event
+        end_time = None
+    else:
+        asset_id = str(event)
+        end_time = None
+
+    # Helper to convert series or scalar to UTC datetime
+    def _to_utc(val: Any) -> pd.Timestamp:
+        ts = pd.to_datetime(val)
+        if ts.tzinfo is not None:
+            return ts.tz_convert(timezone.utc)
+        return ts.tz_localize(timezone.utc)
+
+    res_utc = _to_utc(resolution_time)
+    end_utc = _to_utc(end_time) if end_time is not None else None
+
+    # Parse telemetry timestamps to UTC for filtering
+    tel_ts = pd.to_datetime(tel["timestamp"])
+    if tel_ts.dt.tz is not None:
+        tel_ts_utc = tel_ts.dt.tz_convert(timezone.utc)
+    else:
+        tel_ts_utc = tel_ts.dt.tz_localize(timezone.utc)
+
+    mask = (tel["asset_id"] == asset_id) & (tel_ts_utc >= res_utc)
+    if end_utc is not None:
+        mask &= (tel_ts_utc <= end_utc)
+
+    if not mask.any():
+        return tel
+
+    # Parse baseline timestamps to UTC
+    base = baseline_df.copy()
+    base_ts = pd.to_datetime(base["timestamp"])
+    if base_ts.dt.tz is not None:
+        base["_ts_utc"] = base_ts.dt.tz_convert(timezone.utc)
+    else:
+        base["_ts_utc"] = base_ts.dt.tz_localize(timezone.utc)
+
+    base_sub = base[base["asset_id"] == asset_id].set_index("_ts_utc")
+
+    # Map restoration values from baseline
+    restore_cols = [
+        "power_kw",
+        "interval_energy_kwh",
+        "cumulative_energy_kwh",
+        "state",
+        "flow_lpm",
+        "temperature_c",
+        "setpoint_c",
+        "sensor_status",
+        "quality_flag",
+    ]
+
+    tel_masked_ts = tel_ts_utc[mask]
+    for col in restore_cols:
+        if col in tel.columns and col in base_sub.columns:
+            mapped_vals = tel_masked_ts.map(base_sub[col])
+            # Only overwrite where baseline values exist
+            valid_mask = mapped_vals.notna()
+            if valid_mask.any():
+                sub_indices = tel.index[mask]
+                tel.loc[sub_indices[valid_mask], col] = mapped_vals[valid_mask].values
+
+    # Clean up any duplicated injected rows if applicable
+    if "reading_id" in tel.columns:
+        dup_mask = mask & tel["reading_id"].astype(str).str.endswith("-DUP")
+        if dup_mask.any():
+            tel = tel[~dup_mask]
+
+    return tel
+

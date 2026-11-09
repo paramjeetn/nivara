@@ -13,6 +13,7 @@ Pages:
 """
 import warnings
 warnings.filterwarnings("ignore")
+from typing import Any, Dict, List, Optional, Union
 
 import streamlit as st
 import pandas as pd
@@ -204,7 +205,36 @@ from campus_energy.decision import (
     generate_recommendations_from_scenarios,
     generate_recommendations_from_complaints,
     build_ranked_recommendations,
+    LedgerSummary,
+    SavingsLedger,
+    WorkOrderItem,
 )
+from campus_energy.simulator.events import simulate_fault_resolution
+
+
+def get_or_create_savings_ledger(
+    facility_meta: Any,
+    events_or_alerts: Optional[Union[pd.DataFrame, List[Any]]] = None,
+    tel_df: Optional[pd.DataFrame] = None,
+) -> SavingsLedger:
+    """Retrieve or initialize the persistent SavingsLedger for the active facility."""
+    fac_id = getattr(facility_meta, "facility_id", "university") if not isinstance(facility_meta, dict) else facility_meta.get("key", "university")
+    key = f"savings_ledger_{fac_id}"
+    if key not in st.session_state:
+        ledger = SavingsLedger()
+        if events_or_alerts is not None:
+            has_items = len(events_or_alerts) > 0 if not isinstance(events_or_alerts, pd.DataFrame) else not events_or_alerts.empty
+            if has_items:
+                try:
+                    raw_recs = generate_recommendations_from_alerts(events_or_alerts, profile=facility_meta)
+                    app_recs, _ = apply_service_guard(raw_recs, facility_meta)
+                    for r in app_recs:
+                        ledger.add_recommendation(r)
+                except Exception:
+                    pass
+        st.session_state[key] = ledger
+    st.session_state["savings_ledger"] = st.session_state[key]
+    return st.session_state[key]
 
 
 def render_service_guard_demo_expander(facility_profile: Any):
@@ -860,6 +890,10 @@ if "Executive" in page:
     burn_down = cb["burn_down_df"]
     proj_df = cb["projection_df"]
 
+    # ── Closed-Loop Savings Ledger Synchronization (Step 10) ──
+    p1_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    p1_summary = p1_ledger.get_summary()
+
     # ── Top KPI row ──
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("🔌 Total Energy", f"{kpis['total_energy_kwh']:,.0f} kWh")
@@ -867,7 +901,7 @@ if "Executive" in page:
     c3.metric("☁️ Carbon Emitted", f"{kpis['total_carbon_tons']:.1f} t CO₂")
     c4.metric("♻️ Avoidable Waste", f"{kpis['wasted_kwh']:,.0f} kWh",
               delta=f"-{kpis['waste_pct']}%", delta_color="inverse")
-    avoid_cost = kpis["avoidable_cost_inr"]
+    avoid_cost = p1_summary.cumulative_estimated_inr if p1_summary.cumulative_estimated_inr > 0 else kpis["avoidable_cost_inr"]
     avoid_low = round(avoid_cost * 0.80, 0)
     avoid_high = round(avoid_cost * 1.25, 0)
     c5.metric(
@@ -877,6 +911,35 @@ if "Executive" in page:
         delta_color="off",
     )
     st.caption("⚠️ Decision-support estimate, not an official measurement.")
+
+    # ── Headline Closed-Loop M&V Verification Metrics (Step 10) ──
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("##### 🎯 Closed-Loop M&V Verified Metrics (IPMVP Option B)")
+    m_head1, m_head2, m_head3, m_head4 = st.columns(4)
+    m_head1.metric(
+        "💰 Total Avoided Cost",
+        f"₹{avoid_cost:,.0f}",
+        delta=f"{p1_summary.total_actions} Actions Logged",
+        delta_color="off",
+    )
+    m_head2.metric(
+        "✅ Verified Savings",
+        f"₹{p1_summary.cumulative_verified_inr:,.0f}",
+        delta=f"{p1_summary.cumulative_verified_kwh:,.1f} kWh Verified" if p1_summary.verified_count > 0 else "Pending Field Verification",
+        delta_color="normal" if p1_summary.verified_count > 0 else "off",
+    )
+    m_head3.metric(
+        "🌱 Cumulative Abatement",
+        f"{p1_summary.cumulative_verified_co2_kg:,.1f} kgCO₂e",
+        delta=f"{p1_summary.verified_count} of {p1_summary.total_actions} Work Orders Closed",
+        delta_color="normal" if p1_summary.verified_count > 0 else "off",
+    )
+    m_head4.metric(
+        "🎯 M&V Hit-Rate",
+        f"{p1_summary.estimate_hit_rate_pct:.1f}%",
+        delta=f"{p1_summary.verified_count} Verified Actions (IPMVP B)" if p1_summary.verified_count > 0 else "No Actions Verified Yet",
+        delta_color="normal" if p1_summary.verified_count > 0 else "off",
+    )
 
     st.divider()
 
@@ -1184,6 +1247,7 @@ if "Executive" in page:
             kpis=kpis,
             bee_info=bee,
             events_df=events.head(5) if not events.empty else None,
+            ledger=p1_ledger,
         )
         st.download_button(
             "📥 Download Executive ESG & BEE Audit Report (PDF)",
@@ -3071,34 +3135,98 @@ elif "Alerts" in page:
         st.markdown(f"**Showing {len(filtered_wos)} of {len(active_wo_df)} active work orders**")
 
         # Interactive Work Order Cards / Action List
+        p5_ledger = get_or_create_savings_ledger(facility_meta, events_to_process, tel)
+
+        # Synchronize active work orders into the SavingsLedger
+        for _, wo in wo_df.iterrows():
+            wid = wo["wo_id"]
+            if p5_ledger.get_item(wid) is None:
+                est_kwh = float(wo.get("est_waste_kwh_day", 15.0)) * 7.0
+                rec_bundle = SavingsBundle.from_expected(kwh_expected=est_kwh, inr_per_kwh=8.50)
+                wo_rec = Recommendation(
+                    id=f"REC-{wid}",
+                    facility_id=getattr(facility_meta, "facility_id", "university"),
+                    type=str(wo.get("event_type", "anomaly_fix")),
+                    target=str(wo.get("asset_id", "Asset")),
+                    action_text=str(wo.get("recommended_action", "Operational inspection")),
+                    trigger=str(wo.get("event_id", "Event")),
+                    savings=rec_bundle,
+                    cost=0.0,
+                    payback_months=0.0,
+                    assumption_refs=["tariff.electricity_commercial", "emissions.grid_factor"],
+                    owner_role="operations",
+                    lifecycle="proposed",
+                    confidence=0.88,
+                    is_estimate=True,
+                )
+                p5_ledger.add_recommendation(
+                    wo_rec,
+                    priority=str(wo.get("severity", "high")).lower(),
+                    assignee=str(wo.get("assigned_team", "General Facility Maintenance")),
+                    work_order_id=wid,
+                )
+
         for _, wo in filtered_wos.iterrows():
             wid = wo["wo_id"]
             sev = str(wo["severity"]).lower()
             score = wo["priority_score"]
-            sla_badge = wo["sla_status"]
+            wo_item = p5_ledger.get_item(wid)
+
+            # SLA Countdown Timer
+            now_utc = datetime.now(timezone.utc)
+            if wo_item and wo_item.sla_deadline:
+                dl = wo_item.sla_deadline
+                if dl.tzinfo is None:
+                    dl = dl.replace(tzinfo=timezone.utc)
+                remaining = dl - now_utc
+                if remaining.total_seconds() > 0:
+                    hrs = int(remaining.total_seconds() // 3600)
+                    mins = int((remaining.total_seconds() % 3600) // 60)
+                    sla_timer_str = f"⏱️ {hrs}h {mins}m left"
+                else:
+                    over_h = int(abs(remaining.total_seconds()) // 3600)
+                    sla_timer_str = f"🚨 SLA Breached (+{over_h}h)"
+            else:
+                sla_timer_str = f"⏱️ {wo['sla_status']}"
 
             # Priority icon & color tag
             if sev == "critical":
                 icon = "🚨"
+                prio_badge = "🔴 CRITICAL"
             elif sev == "high":
                 icon = "⚠️"
+                prio_badge = "🟠 HIGH"
             elif sev == "medium":
                 icon = "🟡"
+                prio_badge = "🟡 MEDIUM"
             else:
                 icon = "🟢"
+                prio_badge = "🟢 LOW"
+
+            curr_status = wo_item.status if wo_item else "work_order"
+            status_labels = {
+                "proposed": "📋 PROPOSED",
+                "accepted": "👍 ACCEPTED",
+                "work_order": "🛠️ DISPATCHED",
+                "done": "🔧 DONE",
+                "verified": "✅ VERIFIED",
+            }
+            status_display = status_labels.get(curr_status, curr_status.upper())
 
             with st.expander(
-                f"{icon} [{wid}] {wo['asset_name']} — Score: {score:.1f} | SLA: {sla_badge}",
+                f"{icon} [{wid}] {wo['asset_name']} — {prio_badge} | {status_display} | {sla_timer_str}",
                 expanded=(sev == "critical" or score >= 50.0),
             ):
                 c1, c2, c3 = st.columns(3)
                 c1.markdown(f"**Asset:** `{wo['asset_id']}`")
                 c1.markdown(f"**Building:** `{wo['building_id']}`")
                 c1.markdown(f"**Fault Type:** `{wo['event_type']}`")
+                c1.markdown(f"**Lifecycle State:** `{status_display}`")
 
-                c2.markdown(f"**Assigned Crew:** `{wo['assigned_team']}`")
+                c2.markdown(f"**Assigned Crew:** `{wo_item.assignee if wo_item else wo['assigned_team']}`")
                 c2.markdown(f"**SLA Target:** `{wo['sla_target']}`")
-                c2.markdown(f"**SLA Status:** `{sla_badge}`")
+                c2.markdown(f"**SLA Countdown:** `{sla_timer_str}`")
+                c2.markdown(f"**M&V Protocol:** IPMVP Option B")
 
                 c3.metric(
                     "Daily Waste Rate",
@@ -3110,22 +3238,126 @@ elif "Alerts" in page:
 
                 st.info(f"🔧 **Recommended Action:** {wo['recommended_action']}")
 
-                btn_col1, btn_col2 = st.columns([2, 5])
-                if btn_col1.button("✅ Quick Resolve", key=f"resolve_{wid}"):
-                    st.session_state["resolved_wo_ids"].add(wid)
-                    st.success(f"Work Order {wid} resolved and removed from active queue!")
-                    st.rerun()
+                btn_col1, btn_col2, btn_col3 = st.columns([2, 3, 3])
+                with btn_col1:
+                    if curr_status == "proposed":
+                        if st.button("👍 Accept", key=f"accept_{wid}"):
+                            p5_ledger.accept_recommendation(wid)
+                            st.success(f"Work order {wid} accepted!")
+                            st.rerun()
+
+                with btn_col2:
+                    if curr_status in ("proposed", "accepted"):
+                        if st.button("🚀 Dispatch Work Order", key=f"dispatch_{wid}"):
+                            p5_ledger.create_work_order(
+                                wid,
+                                assignee=wo_item.assignee if wo_item else wo["assigned_team"],
+                                sla_hours=24,
+                                priority=sev,
+                            )
+                            st.success(f"Work order {wid} dispatched!")
+                            st.rerun()
+
+                with btn_col3:
+                    if curr_status in ("work_order", "done", "accepted", "proposed"):
+                        if st.button("🔬 Resolve & Verify", key=f"verify_{wid}"):
+                            comp_time = datetime.now(timezone.utc)
+                            res_tel = simulate_fault_resolution(
+                                telemetry_df=tel,
+                                event=str(wo["asset_id"]),
+                                resolution_time=comp_time,
+                                baseline_df=tel,
+                            )
+                            p5_ledger.complete_and_verify(
+                                wo_id=wid,
+                                completion_time=comp_time,
+                                post_telemetry_df=res_tel,
+                                baseline_df=tel,
+                            )
+                            st.session_state["resolved_wo_ids"].add(wid)
+                            st.success(f"Work Order {wid} resolved and verified via IPMVP Option B!")
+                            st.rerun()
 
         # Collapsible section for resolved work orders
         if resolved_count > 0:
-            with st.expander(f"📁 Completed / Resolved Work Orders ({resolved_count})"):
+            with st.expander(f"📁 Completed & Verified Work Orders ({resolved_count})"):
                 resolved_df = wo_df[wo_df["wo_id"].isin(st.session_state["resolved_wo_ids"])]
                 for _, r_wo in resolved_df.iterrows():
                     rc1, rc2 = st.columns([5, 1])
-                    rc1.markdown(f"✅ **{r_wo['wo_id']}** — {r_wo['asset_name']} ({r_wo['assigned_team']})")
+                    v_item = p5_ledger.get_item(r_wo["wo_id"])
+                    v_note = f" • Verified: ₹{v_item.verified_savings.inr.expected:,.0f}" if (v_item and v_item.verified_savings) else ""
+                    rc1.markdown(f"✅ **{r_wo['wo_id']}** — {r_wo['asset_name']} ({r_wo['assigned_team']}){v_note}")
                     if rc2.button("↩️ Reopen", key=f"reopen_{r_wo['wo_id']}"):
                         st.session_state["resolved_wo_ids"].discard(r_wo["wo_id"])
+                        if v_item:
+                            v_item.status = "work_order"
                         st.rerun()
+
+        # ── Step 10: Dedicated Savings Ledger & M&V Verification Table ─────────
+        st.divider()
+        st.subheader("📊 Dedicated Savings Ledger & M&V Verification Table (IPMVP Option B)")
+        st.caption("Empirical measurement and verification closed-loop: compares counterfactual pre-fault baseline against actual post-completion telemetry.")
+
+        l_summary = p5_ledger.get_summary()
+        k_c1, k_c2, k_c3, k_c4, k_c5 = st.columns(5)
+        k_c1.metric("📋 Total Actions", f"{l_summary.total_actions}")
+        k_c2.metric("✅ Verified Actions", f"{l_summary.verified_count} of {l_summary.total_actions}")
+        k_c3.metric("💰 Estimated Savings", f"₹{l_summary.cumulative_estimated_inr:,.0f}")
+        k_c4.metric(
+            "💸 Verified Avoided Cost",
+            f"₹{l_summary.cumulative_verified_inr:,.0f}",
+            delta=f"{l_summary.cumulative_verified_kwh:,.1f} kWh Verified" if l_summary.verified_count > 0 else "Pending Verification",
+            delta_color="normal" if l_summary.verified_count > 0 else "off",
+        )
+        k_c5.metric(
+            "🎯 Forecast Hit-Rate",
+            f"{l_summary.estimate_hit_rate_pct:.1f}%",
+            delta="IPMVP Option B Band (±20%)" if l_summary.verified_count > 0 else "No Actions Verified",
+            delta_color="normal" if l_summary.verified_count > 0 else "off",
+        )
+
+        ledger_rows = []
+        for item in p5_ledger.get_items():
+            rec = item.recommendation
+            st_badge = {
+                "proposed": "📋 Proposed",
+                "accepted": "👍 Accepted",
+                "work_order": "🛠️ Dispatched",
+                "done": "🔧 Done",
+                "verified": "✅ Verified",
+            }.get(item.status, item.status)
+
+            est_str = f"₹{item.estimated_savings.inr.low:,.0f} – ₹{item.estimated_savings.inr.high:,.0f} (exp: ₹{item.estimated_savings.inr.expected:,.0f})"
+            if item.verified_savings is not None:
+                ver_str = f"₹{item.verified_savings.inr.expected:,.0f} ({item.verified_savings.kwh.expected:,.1f} kWh)"
+                if item.hit_rate_status == "hit":
+                    var_badge = "🎯 HIT (Within ±20%)"
+                elif item.hit_rate_status == "exceeded":
+                    var_badge = "🚀 EXCEEDED"
+                else:
+                    var_badge = "⚠️ VARIANCE"
+            else:
+                ver_str = "— Pending M&V —"
+                var_badge = "⏳ In Progress"
+
+            ledger_rows.append({
+                "WO ID": item.work_order_id,
+                "Action": rec.action_text,
+                "Target Asset": rec.target,
+                "Lifecycle Status": st_badge,
+                "Priority": item.priority.upper(),
+                "Assignee": item.assignee,
+                "Estimated Savings": est_str,
+                "Verified Savings": ver_str,
+                "Variance / Hit-Rate": var_badge,
+                "SLA Target": item.sla_deadline.strftime("%Y-%m-%d %H:%M"),
+            })
+
+        if ledger_rows:
+            l_df = pd.DataFrame(ledger_rows)
+            st.dataframe(l_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("Savings Ledger is currently empty.")
     else:
         st.info("No active faults or anomalies requiring work orders at this time.")
 

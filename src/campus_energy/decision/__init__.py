@@ -39,6 +39,11 @@ from campus_energy.decision.engine import (
     generate_recommendations_from_forecast,
     generate_recommendations_from_scenarios,
 )
+from campus_energy.decision.ledger import (
+    LedgerSummary,
+    SavingsLedger,
+    WorkOrderItem,
+)
 
 __all__ = [
     "SavingsRange",
@@ -69,4 +74,7 @@ __all__ = [
     "generate_recommendations_from_scenarios",
     "generate_recommendations_from_complaints",
     "build_ranked_recommendations",
+    "WorkOrderItem",
+    "LedgerSummary",
+    "SavingsLedger",
 ]

@@ -208,3 +208,43 @@ def test_generate_facility_pdf_real_data_integration():
     assert isinstance(pdf_bytes, bytes)
     assert pdf_bytes.startswith(b"%PDF")
     assert len(pdf_bytes) > 2000
+
+
+def test_generate_facility_pdf_with_savings_ledger(mock_kpis, mock_bee_compliant):
+    """Test PDF generation when a SavingsLedger with verified items is provided."""
+    from campus_energy.decision.ledger import SavingsLedger
+    from campus_energy.decision.recommendation import Recommendation, SavingsBundle
+
+    rec = Recommendation(
+        id="REC-2026-PDF",
+        facility_id="university",
+        type="lighting_shutdown",
+        target="EQ-LT-101",
+        action_text="Night setback lighting schedule",
+        trigger="alert:ALT-101",
+        savings=SavingsBundle.from_expected(120.0, inr_per_kwh=8.50),
+        cost=0.0,
+        payback_months=0.0,
+        assumption_refs=["tariff.electricity_commercial"],
+        owner_role="operations",
+        lifecycle="verified",
+        confidence=0.9,
+    )
+    ledger = SavingsLedger()
+    wo = ledger.add_recommendation(rec)
+    wo.status = "verified"
+    wo.verified_savings = SavingsBundle.from_expected(115.0, inr_per_kwh=8.50)
+
+    pdf_bytes = generate_facility_pdf(
+        facility_name="Vidya Institute of Technology",
+        facility_type="university",
+        floor_area_m2=12000.0,
+        kpis=mock_kpis,
+        bee_info=mock_bee_compliant,
+        ledger=ledger,
+    )
+
+    assert isinstance(pdf_bytes, bytes)
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(pdf_bytes) > 2000
+
