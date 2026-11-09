@@ -6,6 +6,7 @@ from campus_energy import tariffs
 from campus_energy import notify
 from campus_energy import roles
 from campus_energy import demo
+from campus_energy import adapters
 from campus_energy.demo import (
     GuidedTour,
     inject_live_fault,
@@ -36,6 +37,7 @@ __all__ = [
     "notify",
     "roles",
     "demo",
+    "adapters",
     "GuidedTour",
     "inject_live_fault",
     "active_fault_registry",

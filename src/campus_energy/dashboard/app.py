@@ -39,6 +39,12 @@ from campus_energy.demo.tour import (
     get_default_tour,
     get_tour_step_info,
 )
+from campus_energy.adapters import (
+    DataIngestionError,
+    DataQualityReport,
+    detect_column_mapping,
+    process_uploaded_csv,
+)
 
 
 def render_assumptions_expander(keys: list[str]):
@@ -539,6 +545,273 @@ def render_fault_injection_studio(assets_df: pd.DataFrame, telemetry_df: pd.Data
                 clear_fault_registry()
                 st.info("Injected faults cleared.")
                 st.rerun()
+
+
+def render_byod_upload_widget(
+    assets_df: pd.DataFrame,
+    telemetry_df: pd.DataFrame,
+    context_df: pd.DataFrame,
+    expanded: bool = False,
+    key_prefix: str = "byod",
+):
+    """Render the Bring-Your-Own-Data (BYOD) CSV Upload and Data Quality Scorecard."""
+    with st.expander("📥 Bring-Your-Own-Data (CSV Upload)", expanded=expanded):
+        st.markdown(
+            """
+            <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.84rem; color: #cbd5e1;">
+                <b>🚀 External Telemetry Ingestion Engine:</b> Upload raw CSV files from any third-party BMS, smart meter, or IoT gateway.
+                Nivara automatically applies <b>smart regex heuristic mapping</b>, converts non-standard units (e.g. Watts ➔ kW, Joules ➔ kWh),
+                normalizes timezones, validates schemas, and computes a multi-point <b>Data Quality Scorecard</b>.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        col_up, col_sample = st.columns([3, 2])
+        with col_up:
+            uploaded_file = st.file_uploader(
+                "Select third-party telemetry CSV",
+                type=["csv"],
+                key=f"{key_prefix}_file_uploader",
+                help="Accepts CSV with standard or non-standard headers (e.g., RecordedAt, ActivePower_W, MeterName, Volt, PF).",
+            )
+        with col_sample:
+            st.caption("Or load a sample 3rd-party CSV:")
+            sample_choice = st.selectbox(
+                "Sample Dataset",
+                ["-- Choose Sample --", "Non-Standard Headers (Watts & IST)", "Degraded Quality (Stuck + Gaps)"],
+                key=f"{key_prefix}_sample_sel",
+            )
+            load_sample = st.button("📥 Load Selected Sample", key=f"{key_prefix}_load_sample_btn", use_container_width=True)
+
+        sample_csv_text = None
+        if load_sample and sample_choice != "-- Choose Sample --":
+            if sample_choice == "Non-Standard Headers (Watts & IST)":
+                sample_csv_text = (
+                    "RecordedAt,MeterName,ActivePower_W,Volt,PF\n"
+                    "2026-11-01 08:00:00+05:30,AHU_NORTH_01,15000,230.5,0.92\n"
+                    "2026-11-01 08:15:00+05:30,AHU_NORTH_01,16200,229.8,0.91\n"
+                    "2026-11-01 08:30:00+05:30,AHU_NORTH_01,17500,231.0,0.94\n"
+                    "2026-11-01 08:45:00+05:30,AHU_NORTH_01,15800,230.0,0.93\n"
+                    "2026-11-01 09:00:00+05:30,AHU_NORTH_01,18200,230.2,0.95\n"
+                )
+            elif sample_choice == "Degraded Quality (Stuck + Gaps)":
+                rows = [
+                    "Time,Device,kW,Volt",
+                    "2026-11-01 08:00:00,MTR_01,45.0,230.0",
+                    "2026-11-01 08:15:00,MTR_01,45.0,230.0",
+                    "2026-11-01 08:30:00,MTR_01,45.0,230.0",
+                    "2026-11-01 08:45:00,MTR_01,45.0,230.0",
+                    "2026-11-01 09:00:00,MTR_01,45.0,230.0",
+                    "2026-11-01 09:15:00,MTR_01,45.0,230.0",
+                    "2026-11-01 09:30:00,MTR_01,45.0,230.0",
+                    "2026-11-01 09:45:00,MTR_01,45.0,230.0",
+                    "2026-11-01 10:00:00,MTR_01,45.0,230.0",
+                    "2026-11-01 10:15:00,MTR_01,45.0,230.0",
+                    "2026-11-01 10:30:00,MTR_01,45.0,230.0",
+                    "2026-11-01 10:45:00,MTR_01,45.0,230.0",
+                    "2026-11-01 11:00:00,MTR_01,45.0,230.0",
+                    "2026-11-01 13:00:00,MTR_01,48.2,229.0",
+                    "2026-11-01 13:15:00,MTR_01,49.1,230.1",
+                ]
+                sample_csv_text = "\n".join(rows) + "\n"
+            st.session_state[f"{key_prefix}_active_sample_text"] = sample_csv_text
+
+        active_file_or_text = uploaded_file
+        if not active_file_or_text and f"{key_prefix}_active_sample_text" in st.session_state:
+            active_file_or_text = io.StringIO(st.session_state[f"{key_prefix}_active_sample_text"])
+
+        if active_file_or_text is None:
+            st.caption("Upload a CSV file or select a sample above to begin.")
+            return
+
+        try:
+            if hasattr(active_file_or_text, "seek"):
+                active_file_or_text.seek(0)
+            preview_df = pd.read_csv(active_file_or_text, nrows=5)
+            if hasattr(active_file_or_text, "seek"):
+                active_file_or_text.seek(0)
+        except Exception as e:
+            st.error(f"Failed to read CSV: {e}")
+            return
+
+        st.markdown("**1. Column Mapping Preview & Overrides:**")
+        auto_map = detect_column_mapping(preview_df.columns)
+        all_cols = ["-- None / Ignore --"] + list(preview_df.columns)
+
+        map_c1, map_c2, map_c3 = st.columns(3)
+        def_ts = [k for k, v in auto_map.items() if v == "timestamp"]
+        def_pwr = [k for k, v in auto_map.items() if v == "power_kw"]
+        def_ast = [k for k, v in auto_map.items() if v == "asset_id"]
+
+        with map_c1:
+            sel_ts = st.selectbox(
+                "Timestamp Column",
+                all_cols,
+                index=all_cols.index(def_ts[0]) if def_ts and def_ts[0] in all_cols else 0,
+                key=f"{key_prefix}_sel_ts",
+            )
+        with map_c2:
+            sel_pwr = st.selectbox(
+                "Power Column",
+                all_cols,
+                index=all_cols.index(def_pwr[0]) if def_pwr and def_pwr[0] in all_cols else 0,
+                key=f"{key_prefix}_sel_pwr",
+            )
+        with map_c3:
+            sel_ast = st.selectbox(
+                "Asset / Meter Column",
+                all_cols,
+                index=all_cols.index(def_ast[0]) if def_ast and def_ast[0] in all_cols else 0,
+                key=f"{key_prefix}_sel_ast",
+            )
+
+        user_mapping = {}
+        if sel_ts != "-- None / Ignore --":
+            user_mapping[sel_ts] = "timestamp"
+        if sel_pwr != "-- None / Ignore --":
+            user_mapping[sel_pwr] = "power_kw"
+        if sel_ast != "-- None / Ignore --":
+            user_mapping[sel_ast] = "asset_id"
+
+        try:
+            if hasattr(active_file_or_text, "seek"):
+                active_file_or_text.seek(0)
+            byod_df, report = process_uploaded_csv(active_file_or_text, column_mapping=user_mapping)
+            st.session_state["byod_telemetry"] = byod_df
+            st.session_state["byod_quality_report"] = report
+        except DataIngestionError as ie:
+            st.error(f"⚠️ **Ingestion Validation Error:** {ie}")
+            return
+        except Exception as e:
+            st.error(f"⚠️ **Processing Error:** {e}")
+            return
+
+        st.markdown("**2. Data Quality Scorecard:**")
+        if report.quality_score >= 95.0:
+            score_color = "#22c55e"
+            score_badge = "🟢 Excellent Fidelity"
+        elif report.quality_score >= 80.0:
+            score_color = "#eab308"
+            score_badge = "🟡 Good Fidelity"
+        elif report.quality_score >= 65.0:
+            score_color = "#f97316"
+            score_badge = "🟠 Degraded Fidelity"
+        else:
+            score_color = "#ef4444"
+            score_badge = "🔴 Poor / Corrupted"
+
+        st.markdown(
+            f"""
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 0.95rem; font-weight: 700; color: #f8fafc;">
+                        Telemetry Quality Index: <span style="color: {score_color}; font-size: 1.25rem;">{report.quality_score:.1f}%</span>
+                    </span>
+                    <span style="background: #1e293b; color: {score_color}; padding: 3px 10px; border-radius: 4px; font-weight: 600; font-size: 0.78rem;">
+                        {score_badge}
+                    </span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.progress(report.quality_score / 100.0)
+
+        q1, q2, q3, q4, q5, q6 = st.columns(6)
+        q1.metric("Total Records", f"{report.total_records:,}")
+        q2.metric("Missing Intervals", report.missing_intervals_count)
+        q3.metric("Duplicates", report.duplicate_count)
+        q4.metric("Stuck Sensors", report.stuck_sensor_count)
+        q5.metric("Outliers", report.outlier_count)
+        q6.metric("Asset Coverage", f"{report.asset_coverage_pct:.1f}%")
+
+        if report.quality_score < 80.0:
+            st.warning(
+                f"⚠️ Low Data Quality Warning (Score: {report.quality_score:.0f}%): "
+                f"Anomaly detection confidence calibrated down by {report.confidence_penalty*100:+.0f}% "
+                "due to sensor dropouts and stuck readings."
+            )
+        elif report.confidence_penalty < 0.0:
+            st.info(
+                f"ℹ️ Data Quality Alert (Score: {report.quality_score:.0f}%): "
+                f"Slight confidence calibration applied ({report.confidence_penalty*100:+.0f}%)."
+            )
+        else:
+            st.success("✅ Data quality meets high platform fidelity standards (0.0% confidence penalty).")
+
+        with st.expander("📋 Quality Recommendations & Diagnostics", expanded=False):
+            for rec in report.recommendations:
+                st.markdown(f"- {rec}")
+
+        btn_c1, btn_c2 = st.columns(2)
+        with btn_c1:
+            run_analytics = st.button("⚡ Run Analytics on Uploaded Data", key=f"{key_prefix}_run_analytics_btn", use_container_width=True)
+        with btn_c2:
+            apply_active = st.button("📡 Set as Active Platform Telemetry Stream", key=f"{key_prefix}_apply_active_btn", use_container_width=True)
+
+        if apply_active:
+            st.session_state["injected_telemetry"] = byod_df
+            st.session_state["byod_quality_report"] = report
+            st.success("Active telemetry stream updated to uploaded dataset! Dashboard refreshed.")
+            st.rerun()
+
+        if run_analytics:
+            st.markdown("---")
+            st.markdown("**3. Analytics Execution on Uploaded Data:**")
+            with st.spinner("Executing layered anomaly detection and forecasting on uploaded data..."):
+                from campus_energy.analytics.features import engineer_features
+                from campus_energy.analytics.anomalies import detect_anomalies
+
+                byod_asset_ids = byod_df["asset_id"].unique()
+                up_assets_list = []
+                for aid in byod_asset_ids:
+                    existing = assets_df[assets_df["asset_id"] == aid]
+                    if not existing.empty:
+                        up_assets_list.append(existing.iloc[0].to_dict())
+                    else:
+                        up_assets_list.append({
+                            "asset_id": aid,
+                            "asset_type": "meter",
+                            "asset_name": f"Meter {aid}",
+                            "building_id": "BLD-BYOD",
+                            "monitoring_level": "meter",
+                            "rated_power_kw": float(byod_df[byod_df["asset_id"] == aid]["power_kw"].max() or 20.0),
+                            "active": True,
+                        })
+                up_assets_df = pd.DataFrame(up_assets_list)
+
+                up_ctx = pd.DataFrame({
+                    "timestamp": byod_df["timestamp"].drop_duplicates(),
+                    "building_id": "BLD-BYOD",
+                    "occupancy": 50,
+                    "scheduled_occupancy": 50,
+                    "outdoor_temperature_c": 28.0,
+                    "humidity_pct": 60.0,
+                })
+
+                feat = engineer_features(byod_df, up_ctx)
+                byod_alerts = detect_anomalies(feat, up_assets_df, quality_report=report)
+
+                res_c1, res_c2 = st.columns(2)
+                res_c1.metric("Anomalies Flagged", len(byod_alerts))
+                res_c2.metric("Confidence Penalty Applied", f"{report.confidence_penalty:+.2f}")
+
+                if byod_alerts:
+                    st.markdown(f"**Detected Anomalies ({len(byod_alerts)}):**")
+                    for a in byod_alerts[:5]:
+                        st.markdown(
+                            f"""
+                            <div class="alert-card low" style="margin-bottom: 8px;">
+                                <b>{a.anomaly_type.replace('_', ' ').title()}</b> on <code>{a.asset_id}</code> |
+                                Severity: <b>{a.severity.value.upper()}</b> | Confidence: <b>{a.confidence:.2f}</b><br>
+                                <span style="font-size: 0.80rem; color: #94a3b8;">{a.evidence}</span>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.info("No anomalies detected in the uploaded telemetry dataset.")
 
 
 def render_recommendation_card(rec: Recommendation, container=None):
@@ -1094,6 +1367,9 @@ with st.sidebar:
                     """,
                     unsafe_allow_html=True,
                 )
+
+    st.divider()
+    render_byod_upload_widget(assets, tel, ctx, expanded=False, key_prefix="sidebar_byod")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -3125,6 +3401,24 @@ elif "Alerts" in page:
         is_tour_mode=st.session_state.get("guided_tour_active", False),
     )
 
+    # Step 14: Dedicated Bring-Your-Own-Data (CSV Upload) Widget
+    render_byod_upload_widget(
+        assets_df=assets,
+        telemetry_df=tel,
+        context_df=ctx,
+        expanded=False,
+        key_prefix="alerts_byod",
+    )
+
+    # Low Data Quality Warning Banner if active BYOD dataset has low quality
+    active_q_report = st.session_state.get("byod_quality_report")
+    if active_q_report and getattr(active_q_report, "quality_score", 100.0) < 80.0:
+        st.warning(
+            f"⚠️ Low Data Quality Warning (Score: {active_q_report.quality_score:.0f}%): "
+            f"Anomaly detection confidence calibrated down by {active_q_report.confidence_penalty*100:+.0f}% "
+            "due to sensor dropouts and stuck readings."
+        )
+
     if selected_role_key == "operations":
         st.markdown(
             """
@@ -3157,11 +3451,12 @@ elif "Alerts" in page:
         from campus_energy.analytics.explainability import explain_alert
 
         @st.cache_data(show_spinner=False)
-        def _get_alerts():
-            feat = engineer_features(tel, ctx)
-            return detect_anomalies(feat, assets)
+        def _get_alerts(_tel, _ctx, _assets, _penalty=0.0):
+            feat = engineer_features(_tel, _ctx)
+            return detect_anomalies(feat, _assets, confidence_penalty=_penalty)
 
-        alerts = _get_alerts()
+        cal_penalty = getattr(active_q_report, "confidence_penalty", 0.0) if active_q_report else 0.0
+        alerts = _get_alerts(tel, ctx, assets, _penalty=cal_penalty)
 
         # Step 13: Instant Reaction for Injected Faults
         if "last_injected_event" in st.session_state:
@@ -4426,6 +4721,15 @@ elif "Billing" in page:
 # ─────────────────────────────────────────────────────────────────────────────
 elif "Asset Explorer" in page:
     st.title("🔍 Asset Detail Explorer")
+
+    # Step 14: Bring-Your-Own-Data (CSV Upload) Widget
+    render_byod_upload_widget(
+        assets_df=assets,
+        telemetry_df=tel,
+        context_df=ctx,
+        expanded=False,
+        key_prefix="explorer_byod",
+    )
 
     col_sel, col_info = st.columns([1, 2])
 

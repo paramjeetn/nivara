@@ -131,6 +131,8 @@ class TelemetryReading(BaseModel):
     timestamp: datetime
     asset_id: str
     reading_type: str  # e.g., 'meter', 'equipment', 'sensor'
+    quality_flag: QualityFlag = QualityFlag.VALID
+    sensor_status: SensorStatus = SensorStatus.HEALTHY
     power_kw: float | None = None
     interval_energy_kwh: float | None = None
     cumulative_energy_kwh: float | None = None
@@ -141,26 +143,33 @@ class TelemetryReading(BaseModel):
     flow_lpm: float | None = None
     temperature_c: float | None = None
     setpoint_c: float | None = None
-    sensor_status: SensorStatus = SensorStatus.HEALTHY
-    quality_flag: QualityFlag = QualityFlag.VALID
 
     @field_validator("power_factor")
     @classmethod
-    def validate_power_factor(cls, v: float | None) -> float | None:
+    def validate_power_factor(cls, v: float | None, info) -> float | None:
+        flag = info.data.get("quality_flag")
+        if flag in (QualityFlag.OUT_OF_RANGE, QualityFlag.CORRUPTED):
+            return v
         if v is not None and not (0.0 <= v <= 1.0):
             raise ValueError(f"power_factor must be between 0 and 1, got {v}")
         return v
 
     @field_validator("power_kw")
     @classmethod
-    def validate_power_non_negative(cls, v: float | None) -> float | None:
+    def validate_power_non_negative(cls, v: float | None, info) -> float | None:
+        flag = info.data.get("quality_flag")
+        if flag in (QualityFlag.OUT_OF_RANGE, QualityFlag.CORRUPTED):
+            return v
         if v is not None and v < 0:
             raise ValueError(f"power_kw must be non-negative, got {v}")
         return v
 
     @field_validator("interval_energy_kwh")
     @classmethod
-    def validate_energy_non_negative(cls, v: float | None) -> float | None:
+    def validate_energy_non_negative(cls, v: float | None, info) -> float | None:
+        flag = info.data.get("quality_flag")
+        if flag in (QualityFlag.OUT_OF_RANGE, QualityFlag.CORRUPTED):
+            return v
         if v is not None and v < 0:
             raise ValueError(f"interval_energy_kwh must be non-negative, got {v}")
         return v
@@ -246,3 +255,18 @@ class Alert(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     recommendation: str
     status: AlertStatus = AlertStatus.ACTIVE
+
+
+# --- Data Quality Report ---
+
+class DataQualityReport(BaseModel):
+    """Data quality evaluation summary for telemetry datasets."""
+    total_records: int
+    quality_score: float = Field(ge=0.0, le=100.0)
+    missing_intervals_count: int = 0
+    duplicate_count: int = 0
+    stuck_sensor_count: int = 0
+    outlier_count: int = 0
+    asset_coverage_pct: float = Field(ge=0.0, le=100.0, default=100.0)
+    confidence_penalty: float = Field(default=0.0)
+    recommendations: list[str] = Field(default_factory=list)

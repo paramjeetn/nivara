@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import uuid
 from datetime import datetime
+from typing import Any
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
@@ -24,11 +25,12 @@ def calculate_confidence_score(
     deviation: float | None = None,
     baseline_power: float | None = None,
     rated_power: float | None = None,
+    quality_penalty: float = 0.0,
 ) -> float:
     """Formal confidence scoring formulation for anomaly alerts.
 
     Formula:
-        confidence = min(1.0, max(0.1, base_confidence + layer_agreement_bonus + residual_magnitude_score))
+        confidence = min(1.0, max(0.1, base_confidence + layer_agreement_bonus + residual_magnitude_score + quality_penalty))
 
     Components:
         1. base_confidence: Calibrated prior confidence based on detector physics/methodology:
@@ -40,6 +42,7 @@ def calculate_confidence_score(
         3. residual_magnitude_score: Scaled by deviation magnitude relative to baseline/rated power:
            relative_dev = deviation / max(baseline_power or rated_power or 10.0, 0.1)
            residual_magnitude_score = min(0.15, max(0.0, relative_dev * 0.08))
+        4. quality_penalty: Penalty from DataQualityReport (e.g. -0.20 when data quality < 80%).
 
     Parameters:
         detector_type: 'rule', 'statistical', or 'isolation_forest' / 'ml'.
@@ -47,6 +50,7 @@ def calculate_confidence_score(
         deviation: Magnitude of power deviation in kW (|actual - expected|).
         baseline_power: Expected or model baseline power in kW.
         rated_power: Equipment nameplate rated power in kW.
+        quality_penalty: Additive penalty for degraded telemetry data quality (<= 0.0).
 
     Returns:
         Confidence score strictly bounded within [0.10, 1.00], rounded to 2 decimal places.
@@ -73,7 +77,7 @@ def calculate_confidence_score(
         rel_dev = deviation / max(ref_kw, 0.1)
         residual_magnitude_score = min(0.15, max(0.0, rel_dev * 0.08))
 
-    raw_conf = base_confidence + layer_agreement_bonus + residual_magnitude_score
+    raw_conf = base_confidence + layer_agreement_bonus + residual_magnitude_score + quality_penalty
     return round(float(np.clip(raw_conf, 0.10, 1.00)), 2)
 
 
@@ -219,6 +223,8 @@ def detect_anomalies(
     features_df: pd.DataFrame,
     assets_df: pd.DataFrame,
     enabled_layers: list[str] | set[str] | None = None,
+    quality_report: Any | None = None,
+    confidence_penalty: float | None = None,
 ) -> list[Alert]:
     """Run rules + statistical + ML detectors over the features dataframe.
 
@@ -231,10 +237,18 @@ def detect_anomalies(
         enabled_layers: Optional collection of layer names to execute.
             Valid options: 'statistical', 'unoccupied', 'pump_dry_run',
             'sensor_dropout', 'isolation_forest'. If None, all layers run.
+        quality_report: Optional DataQualityReport from data quality engine.
+        confidence_penalty: Optional direct confidence penalty float (e.g. -0.20).
     """
     alerts: list[Alert] = []
     candidates: list[dict] = []
     active_layers = set(enabled_layers) if enabled_layers is not None else ALL_LAYERS
+
+    calibrated_penalty = 0.0
+    if confidence_penalty is not None:
+        calibrated_penalty = float(confidence_penalty)
+    elif quality_report is not None:
+        calibrated_penalty = float(getattr(quality_report, "confidence_penalty", 0.0))
 
     min_time = pd.to_datetime(features_df["timestamp"].min())
     train_end = min_time + pd.Timedelta(days=7)
@@ -507,6 +521,7 @@ def detect_anomalies(
             deviation=cand["deviation"],
             baseline_power=cand["expected_value"],
             rated_power=cand["rated_power_kw"],
+            quality_penalty=calibrated_penalty,
         )
 
         sev = determine_alert_severity(
@@ -520,6 +535,8 @@ def detect_anomalies(
         evidence = cand["evidence"]
         if has_agreement and agreeing_layer:
             evidence = f"{evidence} (Confirmed by multi-layer agreement with {agreeing_layer})"
+        if calibrated_penalty < 0:
+            evidence = f"{evidence} [Confidence calibrated by {calibrated_penalty:+.2f} due to telemetry data quality]"
 
         alerts.append(
             _make_alert(
