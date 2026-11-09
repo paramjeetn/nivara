@@ -467,3 +467,50 @@ assumptions:
     source_date: "2020-06-01"
     confidence: "high"
     applies_to: ["all"]
+
+  # ── Capital Cost & Retrofit Benchmarks ──────────────────────────────────
+  - key: "capital_cost.led_retrofit_per_kw"
+    value: 25000.0
+    unit: "INR/kW"
+    description: "Turnkey supply and installation benchmark for commercial LED luminaire retrofit per kW reduced load"
+    source: "Bureau of Energy Efficiency (BEE) National Energy Conservation Award Benchmark Standards FY2023-24"
+    source_date: "2023-11-10"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "capital_cost.solar_pv_per_kwp"
+    value: 42000.0
+    unit: "INR/kWp"
+    description: "Grid-interactive rooftop solar PV turnkey capital cost benchmark per kWp capacity"
+    source: "Ministry of New and Renewable Energy (MNRE) Rooftop Solar Programme Benchmark Cost FY2024-25"
+    source_date: "2024-02-18"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "capital_cost.bess_per_kwh"
+    value: 18000.0
+    unit: "INR/kWh"
+    description: "Battery Energy Storage System (BESS) lithium iron phosphate turnkey capex benchmark per kWh"
+    source: "Central Electricity Authority (CEA) Report on Battery Energy Storage System Benchmarks"
+    source_date: "2024-01-20"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "capital_cost.hvac_vfd_per_kw"
+    value: 8000.0
+    unit: "INR/kW"
+    description: "Variable Frequency Drive (VFD) retrofit capex for AHU fan and chilled water pump motors per kW"
+    source: "BEE Energy Audit Best Practice Manual for HVAC Pumps & Fans"
+    source_date: "2023-08-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "capital_cost.smart_sensor_per_unit"
+    value: 4500.0
+    unit: "INR/unit"
+    description: "Class 1.0 IoT energy sub-meter and multi-sensor telemetry node replacement cost per unit"
+    source: "BIS IS 13779 / IEC 62053-21 Smart Sub-meter Procurement Schedule"
+    source_date: "2023-09-01"
+    confidence: "high"
+    applies_to: ["all"]
+

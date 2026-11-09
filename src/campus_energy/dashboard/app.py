@@ -190,8 +190,21 @@ COLORS = {
     "purple": "#8b5cf6",
 }
 
-from campus_energy.decision.recommendation import Recommendation, SavingsBundle, GuardResult
-from campus_energy.decision.guard import check_service_guard, apply_service_guard
+from campus_energy.decision import (
+    Recommendation,
+    SavingsBundle,
+    SavingsRange,
+    GuardResult,
+    check_service_guard,
+    apply_service_guard,
+    calculate_savings,
+    RecommendationEngine,
+    generate_recommendations_from_alerts,
+    generate_recommendations_from_forecast,
+    generate_recommendations_from_scenarios,
+    generate_recommendations_from_complaints,
+    build_ranked_recommendations,
+)
 
 
 def render_service_guard_demo_expander(facility_profile: Any):
@@ -338,6 +351,104 @@ def render_service_guard_demo_expander(facility_profile: Any):
                 """,
                 unsafe_allow_html=True,
             )
+
+
+def render_recommendation_card(rec: Recommendation, container=None):
+    """Render a unified, defensible recommendation card adhering to the Nivara design language."""
+    c = container if container is not None else st
+
+    role_colors = {
+        "operations": ("#0284c7", "👨‍💼 Operations"),
+        "sustainability": ("#10b981", "🌱 Sustainability"),
+        "administrator": ("#8b5cf6", "🏛️ Administrator"),
+    }
+    role_color, role_label = role_colors.get(rec.owner_role, ("#64748b", str(rec.owner_role).capitalize()))
+
+    is_blocked = rec.is_blocked or (rec.service_guard and rec.service_guard.status == "blocked")
+    status_badge = (
+        """<span style="background:rgba(239,68,68,0.18); color:#ef4444; border:1px solid #ef4444; border-radius:4px; padding:3px 8px; font-weight:700; font-size:0.75rem;">🛡️ Guard-Blocked</span>"""
+        if is_blocked
+        else """<span style="background:rgba(16,185,129,0.18); color:#10b981; border:1px solid #10b981; border-radius:4px; padding:3px 8px; font-weight:700; font-size:0.75rem;">🟢 Service-Safe</span>"""
+    )
+
+    border_color = "#ef4444" if is_blocked else "#334155"
+    title_text = rec.action_text.split(":")[0] if ":" in rec.action_text else rec.type.replace("_", " ").title()
+
+    with c.container():
+        st.markdown(
+            f"""
+            <div style="background:#1e293b; border:1px solid {border_color}; border-radius:8px; padding:12px 16px; margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div>
+                        <span style="font-weight:700; color:#f8fafc; font-size:1.0rem;">{title_text}</span>
+                        <span style="font-size:0.8rem; color:#94a3b8; margin-left:8px;">(ID: {rec.id} · Target: <b>{rec.target}</b>)</span>
+                    </div>
+                    <div>
+                        <span style="background:{role_color}22; color:{role_color}; border:1px solid {role_color}; border-radius:4px; padding:2px 8px; font-size:0.75rem; font-weight:600; margin-right:6px;">
+                            {role_label}
+                        </span>
+                        {status_badge}
+                    </div>
+                </div>
+                <div style="color:#cbd5e1; font-size:0.88rem; line-height:1.45; margin-bottom:10px;">
+                    {rec.action_text}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        m_col1.metric(
+            "Expected Savings",
+            f"₹{rec.savings.inr.expected:,.1f}",
+            f"Range: ₹{rec.savings.inr.low:,.1f} – ₹{rec.savings.inr.high:,.1f}",
+        )
+        m_col2.metric(
+            "Energy Saved",
+            f"{rec.savings.kwh.expected:,.1f} kWh",
+            f"Range: {rec.savings.kwh.low:,.1f} – {rec.savings.kwh.high:,.1f}",
+        )
+        m_col3.metric(
+            "Carbon Abated",
+            f"{rec.savings.co2_kg.expected:,.1f} kgCO₂e",
+            f"Range: {rec.savings.co2_kg.low:,.1f} – {rec.savings.co2_kg.high:,.1f}",
+        )
+        if rec.cost > 0.0:
+            payback_str = f"{rec.payback_months:.1f} mos" if rec.payback_months else "N/A"
+            m_col4.metric(
+                "Capital Investment",
+                f"₹{rec.cost:,.0f}",
+                f"Payback: {payback_str}",
+            )
+        else:
+            m_col4.metric(
+                "Capital Investment",
+                "₹0 (Operational)",
+                "Immediate Payback",
+            )
+
+        if is_blocked and rec.service_guard:
+            st.markdown(
+                f"""
+                <div style="background:rgba(239,68,68,0.12); border-left:4px solid #ef4444; border-radius:6px; padding:10px 14px; margin-top:6px; margin-bottom:8px;">
+                    <div style="color:#ef4444; font-weight:700; font-size:0.85rem;">🛡️ Blocked by Service-Impact Guard: {rec.service_guard.reason}</div>
+                    <div style="color:#38bdf8; font-size:0.82rem; margin-top:4px;"><b>💡 Safe Alternative:</b> {rec.service_guard.safe_alternative or 'Maintain uninterrupted nominal operation.'}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        if rec.assumption_refs:
+            with st.expander(f"🔍 Traceable Assumptions ({len(rec.assumption_refs)} refs)"):
+                for ref_key in rec.assumption_refs:
+                    try:
+                        asm = assumptions.get(ref_key)
+                        st.markdown(
+                            f"- **`{asm.key}`**: `{asm.value}` *{asm.unit}* — {asm.description} *(Source: {asm.source})*"
+                        )
+                    except Exception:
+                        st.markdown(f"- **`{ref_key}`**: (Assumptions Registry key)")
 
 
 @st.cache_data(show_spinner="Loading campus data…")
@@ -940,6 +1051,40 @@ if "Executive" in page:
             file_name=f"{facility_type}_esg_audit_report.pdf",
             mime="application/pdf",
         )
+
+    # ── Step 8: Unified Recommendation Pipeline & Decarbonization Roadmap ──
+    st.divider()
+    st.subheader("💡 Unified Recommendation Pipeline & Decarbonization Roadmap")
+    st.caption("AI-synthesized, multi-source energy conservation recommendations strictly verified by the Service-Impact Guard and ranked by expected annual financial savings.")
+
+    engine = RecommendationEngine(facility_meta)
+    p1_scenarios = [
+        ("led_upgrade", {"led_upgrade": True}),
+        ("solar_pv", {"solar_pv_kwp": 150.0}),
+        ("setpoint_adjustment", {"temp_offset": 1.0}),
+    ]
+    p1_approved, p1_blocked = engine.build_ranked(
+        alerts=events if not events.empty else None,
+        complaints=complaints if not complaints.empty else None,
+        scenarios=p1_scenarios,
+    )
+
+    t_app, t_blk = st.tabs([f"🟢 Approved Ranked Measures ({len(p1_approved)})", f"🛡️ Blocked by Guard ({len(p1_blocked)})"])
+    with t_app:
+        if p1_approved:
+            for r in p1_approved:
+                render_recommendation_card(r)
+        else:
+            st.info("No approved recommendations active.")
+
+    with t_blk:
+        if p1_blocked:
+            st.warning("The following proposed measures were intercepted by the Service-Impact Guard to protect critical operations:")
+            for r in p1_blocked:
+                render_recommendation_card(r)
+        else:
+            st.success("Zero recommendations blocked for current configuration.")
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2448,17 +2593,23 @@ elif "Alerts" in page:
 
                 expl = explain_alert(alert, context_row=context_row, asset_info=asset_info)
 
-                # ── Step 7: Service-Impact Guard Check ──
-                alert_rec = Recommendation(
-                    id=f"REC-{alert.alert_id}",
-                    facility_id=str(getattr(facility_meta, "facility_id", "university")),
-                    type=alert.anomaly_type,
-                    target=alert.asset_id,
-                    action_text=alert.recommendation or f"Resolve {alert.anomaly_type} on {alert.asset_id}",
-                    trigger=alert.alert_id,
-                    savings=SavingsBundle.from_expected(alert.deviation or 10.0),
-                    owner_role="operations",
-                )
+                # ── Step 8: Recommendation & Service-Impact Guard Check ──
+                rec_list = generate_recommendations_from_alerts([alert], context=context_row, profile=facility_meta)
+                if rec_list:
+                    alert_rec = rec_list[0]
+                else:
+                    kwh_s = alert.deviation or 10.0
+                    bundle, payback = calculate_savings(expected_kwh=kwh_s, variance_pct=0.20)
+                    alert_rec = Recommendation(
+                        id=f"REC-{alert.alert_id}",
+                        facility_id=str(getattr(facility_meta, "facility_id", "university")),
+                        type=alert.anomaly_type,
+                        target=alert.asset_id,
+                        action_text=alert.recommendation or f"Resolve {alert.anomaly_type} on {alert.asset_id}",
+                        trigger=alert.alert_id,
+                        savings=bundle,
+                        owner_role="operations",
+                    )
                 rec_ctx = {
                     "zone_id": alert.zone_id,
                     "building_id": alert.building_id,
@@ -2467,25 +2618,9 @@ elif "Alerts" in page:
                 if context_row:
                     rec_ctx.update(context_row)
                 guard_res = check_service_guard(alert_rec, facility_meta, rec_ctx)
-                if guard_res.status == "pass":
-                    st.markdown(
-                        """
-                        <div style="background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:6px; padding:6px 12px; margin-top:6px; margin-bottom:8px;">
-                            <span style="color:#10b981; font-weight:600; font-size:0.85rem;">🟢 Service-Safe: Passed protected load, PMV comfort, and occupancy constraints.</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        f"""
-                        <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:6px; padding:8px 12px; margin-top:6px; margin-bottom:8px;">
-                            <div style="color:#ef4444; font-weight:700; font-size:0.85rem;">🛡️ Blocked by Service-Impact Guard: {guard_res.reason}</div>
-                            <div style="color:#38bdf8; font-size:0.82rem; margin-top:4px;"><b>Safe Alternative:</b> {guard_res.safe_alternative}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+                alert_rec.service_guard = guard_res
+
+                render_recommendation_card(alert_rec)
 
                 st.markdown(
                     f"""
@@ -2647,6 +2782,15 @@ elif "Alerts" in page:
                 result["cluster_df"][result["cluster_df"]["theme_label"] == result["top_theme"]][["timestamp", "description", "theme_label"]].head(10),
                 use_container_width=True,
             )
+
+            # Recommendations from complaint clusters
+            st.markdown("#### 🔧 Operational Remediation Recommendations")
+            cmp_recs = generate_recommendations_from_complaints(result, facility_meta)
+            app_cmp, blk_cmp = apply_service_guard(cmp_recs, facility_meta)
+            for cr in app_cmp:
+                render_recommendation_card(cr)
+            for cr in blk_cmp:
+                render_recommendation_card(cr)
         else:
             st.info("Not enough complaint data for NLP clustering (minimum 3 complaints required).")
     else:
@@ -3500,51 +3644,27 @@ elif "Assistant" in page:
 
         # Add standardized savings range column
         action_df["estimated_saving_range"] = action_df["estimated_saving_kwh"].apply(
-            lambda v: f"{float(v):.1f} kWh [{float(v)*0.8:.1f} – {float(v)*1.25:.1f}]"
+            lambda v: f"{float(v):.1f} kWh [{float(v)*0.8:.1f} – {float(v)*1.2:.1f}]"
             if v is not None and not pd.isna(v)
-            else "TBD"
+            else "25.0 kWh [20.0 – 30.0]"
         )
         display_cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_range", "status", "detected_at"]
         st.dataframe(action_df[display_cols], use_container_width=True)
         st.caption("⚠️ Decision-support estimate, not an official measurement.")
 
-        st.markdown("#### 🛡️ Service-Impact Guard Verification")
-        for idx, act in enumerate(st.session_state["action_log"]):
-            a_target = act.get("target_asset", "Campus-wide")
-            a_type = act.get("action_type", "anomaly_fix")
-            a_kwh = float(act.get("estimated_saving_kwh") or 25.0)
-            rec = Recommendation(
-                id=f"ACT-{idx+1}",
-                facility_id=str(getattr(facility_meta, "facility_id", "university")),
-                type=a_type,
-                target=a_target,
-                action_text=f"{a_type} on {a_target} ({act.get('suggested_time', 'Next maintenance window')})",
-                trigger="ai_facility_assistant",
-                savings=SavingsBundle.from_expected(a_kwh),
-                owner_role="operations",
-            )
-            g_res = check_service_guard(rec, facility_meta)
-            with st.container():
-                st.markdown(f"**Action #{idx+1}: {a_type} — `{a_target}`** · Saving: ~{a_kwh:.1f} kWh")
-                if g_res.status == "pass":
-                    st.markdown(
-                        """
-                        <div style="background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:6px; padding:6px 12px; margin-top:2px; margin-bottom:8px;">
-                            <span style="color:#10b981; font-weight:600; font-size:0.85rem;">🟢 Service-Safe: Passed protected load, PMV comfort, and occupancy constraints.</span>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        f"""
-                        <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:6px; padding:8px 12px; margin-top:2px; margin-bottom:8px;">
-                            <div style="color:#ef4444; font-weight:700; font-size:0.85rem;">🛡️ Blocked by Service-Impact Guard: {g_res.reason}</div>
-                            <div style="color:#38bdf8; font-size:0.82rem; margin-top:4px;"><b>Safe Alternative:</b> {g_res.safe_alternative}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+        st.markdown("#### 🛡️ Service-Impact Guard Verification & Action Cards")
+        guarded_recs = agent_mod.actions_to_recommendations(st.session_state["action_log"], facility_meta)
+        app_acts, blk_acts = apply_service_guard(guarded_recs, facility_meta)
+
+        if app_acts:
+            st.markdown(f"##### 🟢 Approved Service-Safe Actions ({len(app_acts)})")
+            for rec in app_acts:
+                render_recommendation_card(rec)
+
+        if blk_acts:
+            st.markdown(f"##### 🛡️ Blocked by Service-Impact Guard ({len(blk_acts)})")
+            for rec in blk_acts:
+                render_recommendation_card(rec)
     else:
         st.caption("No actions detected yet. Ask the AI assistant a question to generate recommendations.")
         st.caption("⚠️ Decision-support estimate, not an official measurement.")
