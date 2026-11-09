@@ -11,6 +11,8 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from campus_energy import assumptions
+
 
 # Default geographic coordinates for campus buildings
 DEFAULT_CAMPUS_COORDS: Dict[str, list[float]] = {
@@ -60,22 +62,27 @@ def calculate_pmv_ppd(
     Returns:
         Dict with pmv, ppd, category, color, advisory.
     """
+    optimal_setpoint = float(assumptions.get_value("comfort.optimal_setpoint_c"))
+    default_air_vel = float(assumptions.get_value("comfort.air_velocity_mps"))
+    default_met = float(assumptions.get_value("comfort.metabolic_rate_met"))
+    default_clo = float(assumptions.get_value("comfort.clothing_insulation_clo"))
+
     # Water vapor pressure P_a in hPa (mbar) via Antoine / Tetens approximation
     # Pa = (humidity_pct / 100) * 10 * exp(16.6536 - 4030.183 / (temp_c + 235))
     pa = (humidity_pct / 100.0) * 10.0 * math.exp(16.6536 - 4030.183 / (temp_c + 235.0))
 
     # Sensitivity factor TS = 0.303 * exp(-0.036 * M) + 0.028
-    # For nominal sedentary met=1.1:
-    ts_ref = 0.303 * math.exp(-0.036 * 1.1) + 0.028
+    # For nominal sedentary met:
+    ts_ref = 0.303 * math.exp(-0.036 * default_met) + 0.028
     ts = 0.303 * math.exp(-0.036 * metabolic_rate) + 0.028
 
-    # Thermal load L normalized so that at M=1.1:
-    # PMV = (temp_c - 24.0) * 0.28 + (Pa - 16.0) * 0.015
-    load = ((temp_c - 24.0) * 0.28 + (pa - 16.0) * 0.015) / ts_ref
+    # Thermal load L normalized so that at default met:
+    # PMV = (temp_c - optimal_setpoint) * 0.28 + (Pa - 16.0) * 0.015
+    load = ((temp_c - optimal_setpoint) * 0.28 + (pa - 16.0) * 0.015) / ts_ref
 
     # Minor velocity and clothing adjustments
-    cooling_effect = max(0.0, (air_velocity_mps - 0.15) * 1.2)
-    clothing_scale = clothing_clo / 0.6 if clothing_clo > 0 else 1.0
+    cooling_effect = max(0.0, (air_velocity_mps - default_air_vel) * 1.2)
+    clothing_scale = clothing_clo / default_clo if default_clo > 0 else 1.0
 
     raw_pmv = (ts * load - cooling_effect) * clothing_scale
     pmv = float(np.clip(round(raw_pmv, 2), -3.0, 3.0))
@@ -85,6 +92,7 @@ def calculate_pmv_ppd(
     ppd = float(np.clip(ppd, 5.0, 100.0))
 
     # ASHRAE 55 categories
+    opt_int = int(round(optimal_setpoint))
     if -0.5 <= pmv <= 0.5:
         category = "Comfortable (Neutral)"
         color = "#10b981"
@@ -92,7 +100,7 @@ def calculate_pmv_ppd(
     elif 0.5 < pmv <= 1.5:
         category = "Slightly Warm"
         color = "#f59e0b"
-        advisory = "Slightly warm: increase airflow or reduce setpoint to 24°C."
+        advisory = f"Slightly warm: increase airflow or reduce setpoint to {opt_int}°C."
     elif pmv > 1.5:
         category = "Warm / Heat Discomfort"
         color = "#ef4444"
@@ -100,7 +108,7 @@ def calculate_pmv_ppd(
     elif -1.5 <= pmv < -0.5:
         category = "Slightly Cool"
         color = "#38bdf8"
-        advisory = "Increase setpoint to 24°C to save energy and improve comfort."
+        advisory = f"Increase setpoint to {opt_int}°C to save energy and improve comfort."
     else:
         category = "Cool / Overcooled"
         color = "#6366f1"
@@ -240,13 +248,13 @@ def get_comfort_snapshot(
             continue
         seen_zones.add(z_id)
 
-        # Temperature: preference order = tel_zone_temps -> sub_ctx[temp_col] -> 24.0
+        # Temperature: preference order = tel_zone_temps -> sub_ctx[temp_col] -> fallback setpoint
         if z_id in tel_zone_temps:
             t_c = tel_zone_temps[z_id]
         elif temp_col in r and pd.notna(r[temp_col]):
             t_c = float(r[temp_col])
         else:
-            t_c = 24.0
+            t_c = float(assumptions.get_value("comfort.optimal_setpoint_c"))
 
         # Humidity
         if hum_col and hum_col in r and pd.notna(r[hum_col]):

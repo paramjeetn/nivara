@@ -5,6 +5,8 @@ import numpy as np
 from pathlib import Path
 import math
 
+from campus_energy import assumptions
+
 app = FastAPI()
 DATA_DIR = Path("data/generated")
 
@@ -65,11 +67,13 @@ async def get_esg():
         tel = pd.read_csv(DATA_DIR / "telemetry.csv")
         total_energy_kwh = clean_float(tel[tel["reading_type"] == "meter"]["interval_energy_kwh"].sum())
         wasted_energy = 14500.5
+        grid_factor = float(assumptions.get_value("emissions.grid_factor"))
+        tariff = float(assumptions.get_value("tariff.electricity_commercial"))
         return {
             "total_energy_kwh": total_energy_kwh,
             "wasted_energy_kwh": wasted_energy,
-            "carbon_tons": (total_energy_kwh * 0.82) / 1000,
-            "savings_inr": wasted_energy * 8.0
+            "carbon_tons": (total_energy_kwh * grid_factor) / 1000,
+            "savings_inr": wasted_energy * tariff
         }
     except Exception as e:
         return {"error": str(e)}
@@ -84,7 +88,8 @@ async def get_billing():
         assets["department"] = np.random.choice(depts, size=len(assets))
         billing_df = tel.merge(assets[["asset_id", "department"]], on="asset_id")
         dept_usage = billing_df.groupby("department")["interval_energy_kwh"].sum().reset_index().fillna(0)
-        dept_usage["cost_inr"] = dept_usage["interval_energy_kwh"] * 8.5
+        tariff = float(assumptions.get_value("tariff.electricity_commercial"))
+        dept_usage["cost_inr"] = dept_usage["interval_energy_kwh"] * tariff
         return dept_usage.to_dict(orient="records")
     except Exception as e:
         return {"error": str(e)}
@@ -120,10 +125,12 @@ async def get_microgrid():
         soc = 1000.0
         bat_dispatch = []
         grid = []
+        tod_peak = float(assumptions.get_value("tariff.tod_peak"))
+        tod_off_peak = float(assumptions.get_value("tariff.tod_off_peak"))
         for _, row in campus_hourly.iterrows():
             solar = row["solar_gen_kw"]
             load = row["campus_load_kw"]
-            price = 25.0 if 16 <= row["hour"] <= 21 else 10.0
+            price = tod_peak if 16 <= row["hour"] <= 21 else tod_off_peak
             
             d_kw = 0.0
             if price > 20 and soc > 200:

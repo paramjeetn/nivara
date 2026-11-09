@@ -13,6 +13,7 @@ from datetime import datetime
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 
+from campus_energy import assumptions
 from campus_energy.schemas import Alert, Severity, AlertStatus
 from campus_energy.analytics.baseline import ExpectedConsumptionModel
 
@@ -51,19 +52,20 @@ def _make_alert(
 
 
 def _deduplicate_alerts(alerts: list[Alert]) -> list[Alert]:
-    """Merge alerts for the same (asset_id, anomaly_type) within a 4-hour window."""
+    """Merge alerts for the same (asset_id, anomaly_type) within deduplication window."""
     if not alerts:
         return alerts
 
     seen = {}  # (asset_id, anomaly_type) → latest Alert
     deduped = []
+    dedup_hours = float(assumptions.get_value("anomaly.alert.dedup_window_hours"))
 
     for alert in sorted(alerts, key=lambda a: a.detected_at):
         key = (alert.asset_id, alert.anomaly_type)
         if key in seen:
             prev = seen[key]
             gap = (alert.detected_at - prev.detected_at).total_seconds() / 3600
-            if gap <= 4.0:
+            if gap <= dedup_hours:
                 # Keep the more severe one (or latest)
                 order = [Severity.LOW, Severity.MEDIUM, Severity.HIGH, Severity.CRITICAL]
                 if order.index(alert.severity) >= order.index(prev.severity):
@@ -86,6 +88,15 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
     min_time = features_df["timestamp"].min()
     train_end = min_time + pd.Timedelta(days=7)
 
+    # Load anomaly parameters from registry
+    dev_cutoff = float(assumptions.get_value("anomaly.statistical.deviation_cutoff_kw"))
+    pct_cutoff = float(assumptions.get_value("anomaly.statistical.pct_deviation_cutoff"))
+    crit_cutoff = float(assumptions.get_value("anomaly.statistical.critical_deviation_kw"))
+    standby_fraction = float(assumptions.get_value("anomaly.unoccupied.standby_fraction"))
+    pump_dry_fraction = float(assumptions.get_value("anomaly.pump.dry_run_power_fraction"))
+    if_contamination = float(assumptions.get_value("anomaly.ml.isolation_forest_contamination"))
+    ambient_fallback = float(assumptions.get_value("comfort.ambient_fallback_c"))
+
     asset_ids = features_df["asset_id"].unique()
 
     for asset_id in asset_ids:
@@ -102,7 +113,7 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
         if "occupancy" not in asset_df.columns:
             asset_df["occupancy"] = 0
         if "outdoor_temperature_c" not in asset_df.columns:
-            asset_df["outdoor_temperature_c"] = 32.0
+            asset_df["outdoor_temperature_c"] = ambient_fallback
         train_df = asset_df[asset_df["timestamp"] <= train_end]
         test_df = asset_df[asset_df["timestamp"] > train_end]
 
@@ -124,8 +135,8 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
         # High deviation (actual >> expected)
         dev_mask = (
             (asset_df["timestamp"] > train_end)
-            & (asset_df["deviation"] > 0.5)
-            & (asset_df["deviation"] > 0.3 * asset_df["expected_power_kw"].clip(lower=0.1))
+            & (asset_df["deviation"] > dev_cutoff)
+            & (asset_df["deviation"] > pct_cutoff * asset_df["expected_power_kw"].clip(lower=0.1))
         )
         asset_df["is_dev"] = dev_mask.astype(int)
         asset_df["dev_event"] = (asset_df["is_dev"].diff() == 1).cumsum()
@@ -141,7 +152,7 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
                         building_id=building_id,
                         zone_id=zone_id,
                         anomaly_type="high_consumption",
-                        severity=Severity.CRITICAL if dev_mean > 2.0 else Severity.MEDIUM,
+                        severity=Severity.CRITICAL if dev_mean > crit_cutoff else Severity.MEDIUM,
                         evidence=f"Power exceeded baseline by {dev_mean:.2f} kW for {len(group)*5} min.",
                         recommendation="Inspect equipment for efficiency degradation or unintended operation.",
                         detected_at=group["timestamp"].max(),
@@ -162,7 +173,7 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
         if asset_type in ["lighting", "hvac", "computer_lab"]:
             unocc_mask = (
                 (asset_df["occupancy"] == 0)
-                & (asset_df["power_kw"] > rated_kw * 0.2)
+                & (asset_df["power_kw"] > rated_kw * standby_fraction)
             )
             asset_df["is_unocc"] = unocc_mask.astype(int)
             asset_df["unocc_event"] = (asset_df["is_unocc"].diff() == 1).cumsum()
@@ -191,7 +202,7 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
         # ------------------------------------------------------------------ #
         if asset_type == "pump" and "flow_lpm" in asset_df.columns:
             noflow_mask = (
-                (asset_df["power_kw"] > rated_kw * 0.5)
+                (asset_df["power_kw"] > rated_kw * pump_dry_fraction)
                 & (asset_df["flow_lpm"] == 0)
             )
             asset_df["is_noflow"] = noflow_mask.astype(int)
@@ -257,7 +268,7 @@ def detect_anomalies(features_df: pd.DataFrame, assets_df: pd.DataFrame) -> list
 
             clf = IsolationForest(
                 n_estimators=100,
-                contamination=0.03,  # expect ~3% anomaly rate
+                contamination=if_contamination,
                 random_state=42,
             )
             preds = clf.fit_predict(X_scaled)

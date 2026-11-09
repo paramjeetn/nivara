@@ -23,6 +23,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from campus_energy import assumptions
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Color Palette (Executive Navy, Emerald, Slate)
@@ -330,8 +332,8 @@ def generate_facility_pdf(
         ],
         [
             Paragraph(f"<b>Carbon Offset Equiv.:</b> {trees_eq:,} Trees", cell_norm_style),
-            Paragraph(f"<b>Tariff Baseline:</b> ₹ 8.50 / kWh", cell_norm_style),
-            Paragraph(f"<b>CEA Grid Factor:</b> 0.82 kg CO₂/kWh", cell_norm_style),
+            Paragraph(f"<b>Tariff Baseline:</b> ₹ {assumptions.get_value('tariff.electricity_commercial'):.2f} / kWh", cell_norm_style),
+            Paragraph(f"<b>CEA Grid Factor:</b> {assumptions.get_value('emissions.grid_factor'):.2f} kg CO₂/kWh", cell_norm_style),
             Paragraph(f"<b>Efficiency Factor:</b> {100 - waste_pct:.1f}%", cell_success_style),
         ],
     ]

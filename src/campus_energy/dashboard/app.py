@@ -24,6 +24,34 @@ from datetime import datetime, timedelta
 import json
 import importlib
 
+from campus_energy import assumptions
+
+
+def render_assumptions_expander(keys: list[str]):
+    """Render an expandable panel showing assumption keys, values, confidence, and sources."""
+    with st.expander("ℹ️ Assumptions used"):
+        rows = []
+        for k in keys:
+            try:
+                item = assumptions.get(k)
+                conf_badge = {
+                    "high": "🟢 High",
+                    "medium": "🟡 Medium",
+                    "low": "🟠 Low",
+                    "needs_verification": "🔴 Needs Verification",
+                }.get(item.confidence, item.confidence)
+                rows.append({
+                    "Assumption Key": item.key,
+                    "Value": f"{item.value} {item.unit}".strip(),
+                    "Confidence": conf_badge,
+                    "Source Citation": f"{item.source} ({item.source_date})",
+                    "Description": item.description,
+                })
+            except KeyError:
+                continue
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Page Config (MUST be first Streamlit call)
@@ -396,6 +424,17 @@ if "Executive" in page:
 
     st.title("📊 Executive Overview — ESG & Sustainability")
     st.caption(f"28-day simulation period · Last data point: {latest_ts.strftime('%Y-%m-%d %H:%M')} · Facility: {selected_facility_label}")
+
+    render_assumptions_expander([
+        "tariff.electricity_commercial",
+        "emissions.grid_factor",
+        "policy.napcc_reduction_target_pct",
+        "waste.fault_avoidable_fraction",
+        "sustainability.tree_sequestration_kg_co2_yr",
+        "budget.month_ceiling_days",
+        f"bee.epi.{facility_type}.ecbc_baseline",
+        f"bee.epi.{facility_type}.five_star_max",
+    ])
 
     with st.spinner("Computing ESG & Carbon Budget metrics…"):
         esg = calculate_esg_metrics(tel, events, floor_area_m2=floor_area_m2, facility_type=facility_type)
@@ -952,6 +991,55 @@ elif "Governance" in page:
             compliant_count / 5.0,
             text=f"Institutional Compliance Score: {compliant_count}/5 ({compliant_count * 20}%)",
         )
+
+        # ── Section 4: Centralized Assumptions Registry ──────────────────────────
+        st.divider()
+        st.markdown("### 📖 Centralized Assumptions Registry")
+        st.caption(
+            "Traceable, defensible, and audited operational assumptions. "
+            "All physical, financial, and regulatory benchmarks are defined in `config/assumptions.yaml`."
+        )
+
+        all_assumptions = assumptions.all()
+        domains = sorted(list({a.key.split(".")[0] for a in all_assumptions}))
+        filter_col1, filter_col2 = st.columns([2, 2])
+        with filter_col1:
+            selected_domain = st.selectbox(
+                "Filter by Domain Category:",
+                ["all"] + domains,
+                format_func=lambda x: f"All Domains ({len(all_assumptions)} items)" if x == "all" else f"{x.upper()} ({len(assumptions.list_by_prefix(x + '.'))} items)",
+            )
+        with filter_col2:
+            conf_filter = st.selectbox(
+                "Filter by Confidence Level:",
+                ["all", "high", "medium", "low", "needs_verification"],
+            )
+
+        filtered_items = [
+            a for a in all_assumptions
+            if (selected_domain == "all" or a.key.startswith(f"{selected_domain}."))
+            and (conf_filter == "all" or a.confidence == conf_filter)
+        ]
+
+        table_rows = []
+        for a in filtered_items:
+            conf_badge = {
+                "high": "🟢 High",
+                "medium": "🟡 Medium",
+                "low": "🟠 Low",
+                "needs_verification": "🔴 Needs Verification",
+            }.get(a.confidence, a.confidence)
+
+            table_rows.append({
+                "Key": a.key,
+                "Value": f"{a.value} {a.unit}".strip(),
+                "Confidence": conf_badge,
+                "Source Citation": f"{a.source} ({a.source_date})",
+                "Applies To": ", ".join(a.applies_to),
+                "Description": a.description,
+            })
+
+        st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1547,6 +1635,13 @@ elif "Forecasting" in page:
     st.title("🤖 AI Forecasting & Scenario Simulator")
     st.caption("Ridge regression baseline trained on 21 days of telemetry. Simulate weather and policy changes.")
 
+    render_assumptions_expander([
+        "tariff.electricity_commercial",
+        "emissions.grid_factor",
+        "comfort.optimal_setpoint_c",
+        "comfort.ambient_fallback_c",
+    ])
+
     col_sliders, col_chart = st.columns([1, 3])
 
     with col_sliders:
@@ -1642,10 +1737,12 @@ elif "Forecasting" in page:
             st.plotly_chart(fig, use_container_width=True)
 
             # Scenario Impact Summary
+            tariff_comm = float(assumptions.get_value("tariff.electricity_commercial"))
+            grid_factor = float(assumptions.get_value("emissions.grid_factor"))
             grid_reduction_kw = (campus_fc["predicted_power_kw"] - campus_fc["scenario_power_kw"]).sum()
             grid_reduction_kwh = max(0.0, float(grid_reduction_kw / 12.0))
-            cost_saving_inr = grid_reduction_kwh * 8.5
-            co2_saved_kg = grid_reduction_kwh * 0.82
+            cost_saving_inr = grid_reduction_kwh * tariff_comm
+            co2_saved_kg = grid_reduction_kwh * grid_factor
 
             st.markdown("#### ⚡ Scenario Impact Summary")
             col_sc1, col_sc2, col_sc3 = st.columns(3)
@@ -1676,8 +1773,8 @@ elif "Forecasting" in page:
                 saved_kwh = saved / 12  # 5-min intervals
                 st.success(
                     f"💡 **Policy Impact:** This AC shutdown policy would save "
-                    f"**{saved_kwh:.1f} kWh** tomorrow (≈ ₹{saved_kwh*8.5:.0f} · "
-                    f"{saved_kwh * 0.82:.1f} kg CO₂)."
+                    f"**{saved_kwh:.1f} kWh** tomorrow (≈ ₹{saved_kwh * tariff_comm:.0f} · "
+                    f"{saved_kwh * grid_factor:.1f} kg CO₂)."
                 )
 
             # ── Prophet vs. Ridge — Model Comparison ──
@@ -1824,6 +1921,17 @@ elif "Forecasting" in page:
 elif "Alerts" in page:
     st.title("🚨 AI Anomaly Alerts & NLP Complaint Correlation")
     st.caption("AI-detected anomalies correlated with real facility complaints submitted by occupants.")
+
+    render_assumptions_expander([
+        "anomaly.statistical.deviation_cutoff_kw",
+        "anomaly.statistical.pct_deviation_cutoff",
+        "anomaly.statistical.critical_deviation_kw",
+        "anomaly.unoccupied.standby_fraction",
+        "anomaly.pump.dry_run_power_fraction",
+        "anomaly.ml.isolation_forest_contamination",
+        "anomaly.alert.dedup_window_hours",
+        "tariff.electricity_commercial",
+    ])
 
     # Run detector
     with st.spinner("Running anomaly detection pipeline…"):
@@ -2524,8 +2632,11 @@ elif "Microgrid" in page:
     )
 
     # Electricity price profile (peak: 16-21h)
+    tod_peak = float(assumptions.get_value("tariff.tod_peak"))
+    tod_mid = float(assumptions.get_value("tariff.tod_mid"))
+    tod_off_peak = float(assumptions.get_value("tariff.tod_off_peak"))
     campus_hourly["utility_price_per_kwh"] = campus_hourly["hour"].apply(
-        lambda h: 25.0 if 16 <= h <= 21 else (18.0 if 9 <= h <= 16 else 10.0)
+        lambda h: tod_peak if 16 <= h <= 21 else (tod_mid if 9 <= h <= 16 else tod_off_peak)
     )
 
     # Battery dispatch logic

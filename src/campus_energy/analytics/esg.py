@@ -1,69 +1,68 @@
 """Dedicated ESG & Carbon Impact calculator — with BEE EPI scoring."""
-import pandas as pd
-import numpy as np
+from __future__ import annotations
 
-# India grid emission factor (kg CO2 per kWh) — CEA 2023 estimate
-GRID_EMISSION_FACTOR_KG_PER_KWH = 0.82
-# Electricity cost in INR per kWh (approximate commercial tariff in Odisha)
-COST_PER_KWH_INR = 8.5
-# Solar emission factor (essentially zero for generation, lifecycle ~40g/kWh)
-SOLAR_EMISSION_FACTOR_KG_PER_KWH = 0.04
+import numpy as np
+import pandas as pd
+
+from campus_energy import assumptions
+
+# Dynamic factors loaded from centralized assumptions registry
+GRID_EMISSION_FACTOR_KG_PER_KWH: float = assumptions.get_value("emissions.grid_factor")
+COST_PER_KWH_INR: float = assumptions.get_value("tariff.electricity_commercial")
+SOLAR_EMISSION_FACTOR_KG_PER_KWH: float = assumptions.get_value("emissions.solar_lifecycle_factor")
+NAPCC_REDUCTION_TARGET_PCT: float = assumptions.get_value("policy.napcc_reduction_target_pct")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BEE Energy Performance Index (EPI) benchmarks — kWh / m² / year
 # Source: Bureau of Energy Efficiency, Ministry of Power, Government of India
-# ECBC 2017 + BEE star-rating norms
+# ECBC 2017 + BEE star-rating norms (loaded from assumptions registry)
 # ─────────────────────────────────────────────────────────────────────────────
 BEE_EPI_BENCHMARKS = {
     "university": {
         "label": "Educational Building",
         "stars": {
-            5: (0,    60),    # 5-star: < 60 kWh/m²/yr (excellent)
-            4: (60,   90),    # 4-star: 60–90
-            3: (90,   120),   # 3-star: 90–120 (ECBC baseline)
-            2: (120,  160),   # 2-star: 120–160
-            1: (160,  9999),  # 1-star: > 160 (poor)
+            5: (0, assumptions.get_value("bee.epi.university.five_star_max")),
+            4: (assumptions.get_value("bee.epi.university.five_star_max"), assumptions.get_value("bee.epi.university.four_star_max")),
+            3: (assumptions.get_value("bee.epi.university.four_star_max"), assumptions.get_value("bee.epi.university.three_star_max")),
+            2: (assumptions.get_value("bee.epi.university.three_star_max"), assumptions.get_value("bee.epi.university.two_star_max")),
+            1: (assumptions.get_value("bee.epi.university.two_star_max"), 9999),
         },
-        "ecbc_baseline": 100,  # kWh/m²/yr
+        "ecbc_baseline": assumptions.get_value("bee.epi.university.ecbc_baseline"),
     },
     "hospital": {
         "label": "Healthcare Facility",
         "stars": {
-            5: (0,    150),
-            4: (150,  250),
-            3: (250,  350),   # BEE baseline for hospitals
-            2: (350,  500),
-            1: (500,  9999),
+            5: (0, assumptions.get_value("bee.epi.hospital.five_star_max")),
+            4: (assumptions.get_value("bee.epi.hospital.five_star_max"), assumptions.get_value("bee.epi.hospital.four_star_max")),
+            3: (assumptions.get_value("bee.epi.hospital.four_star_max"), assumptions.get_value("bee.epi.hospital.three_star_max")),
+            2: (assumptions.get_value("bee.epi.hospital.three_star_max"), assumptions.get_value("bee.epi.hospital.two_star_max")),
+            1: (assumptions.get_value("bee.epi.hospital.two_star_max"), 9999),
         },
-        "ecbc_baseline": 300,
+        "ecbc_baseline": assumptions.get_value("bee.epi.hospital.ecbc_baseline"),
     },
     "govt_office": {
         "label": "Government Office",
         "stars": {
-            5: (0,    80),
-            4: (80,   120),
-            3: (120,  160),   # ECBC baseline for offices
-            2: (160,  220),
-            1: (220,  9999),
+            5: (0, assumptions.get_value("bee.epi.govt_office.five_star_max")),
+            4: (assumptions.get_value("bee.epi.govt_office.five_star_max"), assumptions.get_value("bee.epi.govt_office.four_star_max")),
+            3: (assumptions.get_value("bee.epi.govt_office.four_star_max"), assumptions.get_value("bee.epi.govt_office.three_star_max")),
+            2: (assumptions.get_value("bee.epi.govt_office.three_star_max"), assumptions.get_value("bee.epi.govt_office.two_star_max")),
+            1: (assumptions.get_value("bee.epi.govt_office.two_star_max"), 9999),
         },
-        "ecbc_baseline": 140,
+        "ecbc_baseline": assumptions.get_value("bee.epi.govt_office.ecbc_baseline"),
     },
     "industrial": {
         "label": "Industrial Facility",
         "stars": {
-            5: (0,    200),
-            4: (200,  350),
-            3: (350,  500),
-            2: (500,  700),
-            1: (700,  9999),
+            5: (0, assumptions.get_value("bee.epi.industrial.five_star_max")),
+            4: (assumptions.get_value("bee.epi.industrial.five_star_max"), assumptions.get_value("bee.epi.industrial.four_star_max")),
+            3: (assumptions.get_value("bee.epi.industrial.four_star_max"), assumptions.get_value("bee.epi.industrial.three_star_max")),
+            2: (assumptions.get_value("bee.epi.industrial.three_star_max"), assumptions.get_value("bee.epi.industrial.two_star_max")),
+            1: (assumptions.get_value("bee.epi.industrial.two_star_max"), 9999),
         },
-        "ecbc_baseline": 450,
+        "ecbc_baseline": assumptions.get_value("bee.epi.industrial.ecbc_baseline"),
     },
 }
-
-# NAPCC (National Action Plan on Climate Change) — Perform Achieve Trade (PAT)
-# Recommended 20% reduction from baseline for large energy consumers
-NAPCC_REDUCTION_TARGET_PCT = 20.0
 
 
 def _get_bee_star(epi_annual: float, facility_type: str) -> dict:
@@ -104,6 +103,11 @@ def calculate_esg_metrics(
 
     Returns a dict with top-level KPIs, BEE rating, and daily/building breakdowns.
     """
+    cost_per_kwh = assumptions.get_value("tariff.electricity_commercial")
+    grid_emission_factor = assumptions.get_value("emissions.grid_factor")
+    fault_waste_fraction = assumptions.get_value("waste.fault_avoidable_fraction")
+    tree_seq_kg_yr = assumptions.get_value("sustainability.tree_sequestration_kg_co2_yr")
+
     tel = telemetry_df.copy()
     tel["timestamp"] = pd.to_datetime(tel["timestamp"], utc=True)
     tel["date"] = tel["timestamp"].dt.date
@@ -111,10 +115,10 @@ def calculate_esg_metrics(
     # --- Total energy from main building meters ---
     meters = tel[tel["reading_type"] == "meter"].copy()
     total_energy_kwh = meters["interval_energy_kwh"].sum()
-    total_cost_inr = total_energy_kwh * COST_PER_KWH_INR
-    total_carbon_kg = total_energy_kwh * GRID_EMISSION_FACTOR_KG_PER_KWH
+    total_cost_inr = total_energy_kwh * cost_per_kwh
+    total_carbon_kg = total_energy_kwh * grid_emission_factor
 
-    # --- Avoidable waste: estimate 80% of anomalous consumption as avoidable ---
+    # --- Avoidable waste: estimate fault-waste fraction of anomalous consumption as avoidable ---
     evt = events_df.copy()
     evt["start_time"] = pd.to_datetime(evt["start_time"], utc=True)
     evt["end_time"] = pd.to_datetime(evt["end_time"], utc=True)
@@ -126,10 +130,10 @@ def calculate_esg_metrics(
             & (tel["timestamp"] >= row["start_time"])
             & (tel["timestamp"] <= row["end_time"])
         )
-        wasted_kwh += tel.loc[mask, "interval_energy_kwh"].sum() * 0.80
+        wasted_kwh += tel.loc[mask, "interval_energy_kwh"].sum() * fault_waste_fraction
 
-    avoidable_cost_inr = wasted_kwh * COST_PER_KWH_INR
-    avoidable_carbon_kg = wasted_kwh * GRID_EMISSION_FACTOR_KG_PER_KWH
+    avoidable_cost_inr = wasted_kwh * cost_per_kwh
+    avoidable_carbon_kg = wasted_kwh * grid_emission_factor
 
     # --- Daily campus energy trend ---
     daily = (
@@ -139,8 +143,8 @@ def calculate_esg_metrics(
         .rename(columns={"interval_energy_kwh": "daily_kwh"})
     )
     daily["date"] = daily["date"].astype(str)
-    daily["daily_cost_inr"] = daily["daily_kwh"] * COST_PER_KWH_INR
-    daily["daily_carbon_kg"] = daily["daily_kwh"] * GRID_EMISSION_FACTOR_KG_PER_KWH
+    daily["daily_cost_inr"] = daily["daily_kwh"] * cost_per_kwh
+    daily["daily_carbon_kg"] = daily["daily_kwh"] * grid_emission_factor
 
     # --- Per-building breakdown ---
     building_id_col = "asset_id"
@@ -150,26 +154,26 @@ def calculate_esg_metrics(
         .reset_index()
         .rename(columns={"interval_energy_kwh": "total_kwh"})
     )
-    building_energy["cost_inr"] = building_energy["total_kwh"] * COST_PER_KWH_INR
-    building_energy["carbon_kg"] = building_energy["total_kwh"] * GRID_EMISSION_FACTOR_KG_PER_KWH
+    building_energy["cost_inr"] = building_energy["total_kwh"] * cost_per_kwh
+    building_energy["carbon_kg"] = building_energy["total_kwh"] * grid_emission_factor
     building_energy["building_name"] = building_energy[building_id_col].str.replace("MTR-", "")
 
     # --- Annualised projections (28-day window → extrapolate to 365) ---
     simulation_days = max(len(daily), 1)
     annual_kwh = (total_energy_kwh / simulation_days) * 365
-    annual_cost_inr = annual_kwh * COST_PER_KWH_INR
-    annual_carbon_tons = (annual_kwh * GRID_EMISSION_FACTOR_KG_PER_KWH) / 1000
+    annual_cost_inr = annual_kwh * cost_per_kwh
+    annual_carbon_tons = (annual_kwh * grid_emission_factor) / 1000
 
     # --- BEE EPI Score ---
     epi_annual = annual_kwh / max(floor_area_m2, 1.0)
     bee = _get_bee_star(epi_annual, facility_type)
 
-    # Trees equivalent (1 tree absorbs ~21 kg CO₂/year)
-    trees_equivalent = int(annual_carbon_tons * 1000 / 21)
+    # Trees equivalent
+    trees_equivalent = int(annual_carbon_tons * 1000 / tree_seq_kg_yr)
     # NAPCC savings potential
     napcc_savings_kwh = max(0, annual_kwh - (bee["napcc_target_kwh_m2"] * floor_area_m2))
-    napcc_savings_cost = napcc_savings_kwh * COST_PER_KWH_INR
-    napcc_savings_carbon_tons = (napcc_savings_kwh * GRID_EMISSION_FACTOR_KG_PER_KWH) / 1000
+    napcc_savings_cost = napcc_savings_kwh * cost_per_kwh
+    napcc_savings_carbon_tons = (napcc_savings_kwh * grid_emission_factor) / 1000
 
     return {
         "kpis": {

@@ -1,0 +1,469 @@
+# =============================================================================
+# Nivara — Platform Assumptions Registry
+#
+# Every number in Nivara is traceable, defensible, and documented.
+# Each entry defines:
+#   - key: Dot-delimited identifier
+#   - value: Numeric or typed value
+#   - unit: Physical or financial unit
+#   - description: Human-readable explanation
+#   - source: Regulatory standard, tariff order, or empirical study
+#   - source_date: Publication or effective date
+#   - confidence: high | medium | low | needs_verification
+#   - applies_to: List of facility types or ["all"]
+#   - notes: Optional technical notes or TODO verification items
+# =============================================================================
+
+assumptions:
+  # ── Financial & Energy Tariffs ───────────────────────────────────────────
+  - key: "tariff.electricity_commercial"
+    value: 8.5
+    unit: "INR/kWh"
+    description: "Retail commercial electricity supply tariff for general commercial/educational consumers in Odisha"
+    source: "Odisha Electricity Regulatory Commission (OERC) Retail Supply Tariff Order FY2024-25"
+    source_date: "2024-03-23"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "tariff.water_municipal"
+    value: 25.0
+    unit: "INR/kL"
+    description: "Municipal bulk institutional water supply tariff per kilo-liter (1,000 liters)"
+    source: "Odisha Public Health Engineering Organisation (PHEO) Commercial Water Tariff Schedule"
+    source_date: "2024-01-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "tariff.tod_peak"
+    value: 25.0
+    unit: "INR/kWh"
+    description: "Time-of-Day (ToD) peak demand energy tariff (16:00 to 21:00 hrs)"
+    source: "OERC Time-of-Day (ToD) Commercial Tariff Regulations FY2024-25"
+    source_date: "2024-03-23"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "tariff.tod_mid"
+    value: 18.0
+    unit: "INR/kWh"
+    description: "Time-of-Day (ToD) normal mid-day energy tariff (09:00 to 16:00 hrs)"
+    source: "OERC Time-of-Day (ToD) Commercial Tariff Regulations FY2024-25"
+    source_date: "2024-03-23"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "tariff.tod_off_peak"
+    value: 10.0
+    unit: "INR/kWh"
+    description: "Time-of-Day (ToD) off-peak night energy tariff (21:00 to 09:00 hrs)"
+    source: "OERC Time-of-Day (ToD) Commercial Tariff Regulations FY2024-25"
+    source_date: "2024-03-23"
+    confidence: "high"
+    applies_to: ["all"]
+
+  # ── Carbon & Emissions ──────────────────────────────────────────────────
+  - key: "emissions.grid_factor"
+    value: 0.82
+    unit: "kgCO2e/kWh"
+    description: "Combined margin national grid emission factor for Indian electricity grid"
+    source: "Central Electricity Authority (CEA) CO2 Baseline Database for the Indian Power Sector, User Guide v19"
+    source_date: "2023-12-01"
+    confidence: "needs_verification"
+    notes: "TODO: Verify against current CEA baseline database version (v20). Retaining 0.82 kgCO2/kWh per project baseline."
+    applies_to: ["all"]
+
+  - key: "emissions.solar_lifecycle_factor"
+    value: 0.04
+    unit: "kgCO2e/kWh"
+    description: "Life-cycle greenhouse gas emission factor for crystalline silicon rooftop solar PV"
+    source: "NREL Life Cycle Greenhouse Gas Emissions from Solar Photovoltaics Assessment"
+    source_date: "2021-05-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  # ── Sustainability & Carbon Offsets ─────────────────────────────────────
+  - key: "sustainability.tree_sequestration_kg_co2_yr"
+    value: 21.0
+    unit: "kgCO2/tree/yr"
+    description: "Average annual carbon dioxide sequestration rate of a mature indigenous broadleaf tree in India"
+    source: "TERI / UNEP Urban Forestry Carbon Sequestration Model"
+    source_date: "2022-08-10"
+    confidence: "medium"
+    applies_to: ["all"]
+
+  - key: "sustainability.coal_displacement_tons_per_mwh"
+    value: 0.45
+    unit: "tons/MWh"
+    description: "Metric tons of sub-bituminous thermal coal unburned per MWh of displaced grid electricity"
+    source: "CEA Thermal Power Plant Specific Coal Consumption Norms"
+    source_date: "2023-04-12"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "policy.napcc_reduction_target_pct"
+    value: 20.0
+    unit: "%"
+    description: "National Action Plan on Climate Change recommended energy reduction percentage from baseline for designated consumers"
+    source: "National Action Plan on Climate Change (NAPCC) / BEE PAT Scheme Directive"
+    source_date: "2020-01-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "waste.fault_avoidable_fraction"
+    value: 0.80
+    unit: "fraction"
+    description: "Estimated fraction of anomalous consumption during equipment faults attributable to avoidable waste"
+    source: "Empirical Facility Fault-Waste Audit Factor (Nivara baseline)"
+    source_date: "2024-01-10"
+    confidence: "medium"
+    applies_to: ["all"]
+
+  - key: "budget.month_ceiling_days"
+    value: 30.0
+    unit: "days"
+    description: "Standard month duration used for pro-rating monthly carbon budget trajectories and run-rates"
+    source: "BEE Statutory Monthly Energy Accounting Guidelines"
+    source_date: "2023-01-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  # ── BEE Energy Performance Index (EPI) Benchmarks (kWh/m²/yr) ───────────
+  # University / Education
+  - key: "bee.epi.university.five_star_max"
+    value: 60.0
+    unit: "kWh/m2/yr"
+    description: "University 5-Star upper threshold (EPI < 60)"
+    source: "BEE Star Rating Guidelines for Commercial Buildings (Educational Institutions)"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["university"]
+
+  - key: "bee.epi.university.four_star_max"
+    value: 90.0
+    unit: "kWh/m2/yr"
+    description: "University 4-Star upper threshold (60 <= EPI < 90)"
+    source: "BEE Star Rating Guidelines for Commercial Buildings (Educational Institutions)"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["university"]
+
+  - key: "bee.epi.university.three_star_max"
+    value: 120.0
+    unit: "kWh/m2/yr"
+    description: "University 3-Star upper threshold (90 <= EPI < 120)"
+    source: "BEE Star Rating Guidelines for Commercial Buildings (Educational Institutions)"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["university"]
+
+  - key: "bee.epi.university.two_star_max"
+    value: 160.0
+    unit: "kWh/m2/yr"
+    description: "University 2-Star upper threshold (120 <= EPI < 160; > 160 is 1-star)"
+    source: "BEE Star Rating Guidelines for Commercial Buildings (Educational Institutions)"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["university"]
+
+  - key: "bee.epi.university.ecbc_baseline"
+    value: 100.0
+    unit: "kWh/m2/yr"
+    description: "ECBC 2017 standard benchmark baseline for educational campus facilities"
+    source: "Energy Conservation Building Code (ECBC) 2017 - Bureau of Energy Efficiency"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["university"]
+
+  # Hospital / Healthcare
+  - key: "bee.epi.hospital.five_star_max"
+    value: 150.0
+    unit: "kWh/m2/yr"
+    description: "Hospital 5-Star upper threshold (EPI < 150)"
+    source: "BEE Star Rating Guidelines for Hospital Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["hospital"]
+
+  - key: "bee.epi.hospital.four_star_max"
+    value: 250.0
+    unit: "kWh/m2/yr"
+    description: "Hospital 4-Star upper threshold (150 <= EPI < 250)"
+    source: "BEE Star Rating Guidelines for Hospital Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["hospital"]
+
+  - key: "bee.epi.hospital.three_star_max"
+    value: 350.0
+    unit: "kWh/m2/yr"
+    description: "Hospital 3-Star upper threshold (250 <= EPI < 350)"
+    source: "BEE Star Rating Guidelines for Hospital Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["hospital"]
+
+  - key: "bee.epi.hospital.two_star_max"
+    value: 500.0
+    unit: "kWh/m2/yr"
+    description: "Hospital 2-Star upper threshold (350 <= EPI < 500; > 500 is 1-star)"
+    source: "BEE Star Rating Guidelines for Hospital Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["hospital"]
+
+  - key: "bee.epi.hospital.ecbc_baseline"
+    value: 300.0
+    unit: "kWh/m2/yr"
+    description: "ECBC 2017 standard benchmark baseline for healthcare facilities"
+    source: "Energy Conservation Building Code (ECBC) 2017 - Bureau of Energy Efficiency"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["hospital"]
+
+  # Government Office
+  - key: "bee.epi.govt_office.five_star_max"
+    value: 80.0
+    unit: "kWh/m2/yr"
+    description: "Government Office 5-Star upper threshold (EPI < 80)"
+    source: "BEE Star Rating Guidelines for Commercial Office Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["govt_office"]
+
+  - key: "bee.epi.govt_office.four_star_max"
+    value: 120.0
+    unit: "kWh/m2/yr"
+    description: "Government Office 4-Star upper threshold (80 <= EPI < 120)"
+    source: "BEE Star Rating Guidelines for Commercial Office Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["govt_office"]
+
+  - key: "bee.epi.govt_office.three_star_max"
+    value: 160.0
+    unit: "kWh/m2/yr"
+    description: "Government Office 3-Star upper threshold (120 <= EPI < 160)"
+    source: "BEE Star Rating Guidelines for Commercial Office Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["govt_office"]
+
+  - key: "bee.epi.govt_office.two_star_max"
+    value: 220.0
+    unit: "kWh/m2/yr"
+    description: "Government Office 2-Star upper threshold (160 <= EPI < 220; > 220 is 1-star)"
+    source: "BEE Star Rating Guidelines for Commercial Office Buildings"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["govt_office"]
+
+  - key: "bee.epi.govt_office.ecbc_baseline"
+    value: 140.0
+    unit: "kWh/m2/yr"
+    description: "ECBC 2017 standard benchmark baseline for administrative office buildings"
+    source: "Energy Conservation Building Code (ECBC) 2017 - Bureau of Energy Efficiency"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["govt_office"]
+
+  # Industrial Campus
+  - key: "bee.epi.industrial.five_star_max"
+    value: 200.0
+    unit: "kWh/m2/yr"
+    description: "Industrial Campus 5-Star upper threshold (EPI < 200)"
+    source: "BEE Energy Efficiency Benchmarks for Industrial Facilities"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["industrial"]
+
+  - key: "bee.epi.industrial.four_star_max"
+    value: 350.0
+    unit: "kWh/m2/yr"
+    description: "Industrial Campus 4-Star upper threshold (200 <= EPI < 350)"
+    source: "BEE Energy Efficiency Benchmarks for Industrial Facilities"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["industrial"]
+
+  - key: "bee.epi.industrial.three_star_max"
+    value: 500.0
+    unit: "kWh/m2/yr"
+    description: "Industrial Campus 3-Star upper threshold (350 <= EPI < 500)"
+    source: "BEE Energy Efficiency Benchmarks for Industrial Facilities"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["industrial"]
+
+  - key: "bee.epi.industrial.two_star_max"
+    value: 700.0
+    unit: "kWh/m2/yr"
+    description: "Industrial Campus 2-Star upper threshold (500 <= EPI < 700; > 700 is 1-star)"
+    source: "BEE Energy Efficiency Benchmarks for Industrial Facilities"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["industrial"]
+
+  - key: "bee.epi.industrial.ecbc_baseline"
+    value: 450.0
+    unit: "kWh/m2/yr"
+    description: "ECBC 2017 standard benchmark baseline for light industrial manufacturing facilities"
+    source: "Energy Conservation Building Code (ECBC) 2017 - Bureau of Energy Efficiency"
+    source_date: "2023-06-01"
+    confidence: "high"
+    applies_to: ["industrial"]
+
+  # ── Anomaly Thresholds ──────────────────────────────────────────────────
+  - key: "anomaly.statistical.deviation_cutoff_kw"
+    value: 0.5
+    unit: "kW"
+    description: "Minimum absolute power excess over baseline to trigger statistical anomaly candidate"
+    source: "ASHRAE Guideline 14-2014 / Nivara Statistical Baseline Tuning"
+    source_date: "2024-02-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "anomaly.statistical.pct_deviation_cutoff"
+    value: 0.3
+    unit: "fraction"
+    description: "Minimum percentage deviation (30% above expected power) required to trigger statistical anomaly"
+    source: "Nivara Anomaly Detection Specification"
+    source_date: "2024-02-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "anomaly.statistical.critical_deviation_kw"
+    value: 2.0
+    unit: "kW"
+    description: "Mean deviation magnitude threshold above which sustained anomalies escalate to CRITICAL severity"
+    source: "Nivara Operational Severity Escalation Matrix"
+    source_date: "2024-02-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "anomaly.unoccupied.standby_fraction"
+    value: 0.2
+    unit: "fraction"
+    description: "Maximum allowable power draw as fraction of rated kW when zone occupancy is zero"
+    source: "ECBC 2017 Section 5.2 Parasitic Standby Power Limit"
+    source_date: "2023-05-10"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "anomaly.pump.dry_run_power_fraction"
+    value: 0.5
+    unit: "fraction"
+    description: "Pump power draw fraction threshold indicating unprimed dry-run when flow is zero"
+    source: "Hydraulic Institute Standards ANSI/HI 9.6.5 Pump Condition Monitoring"
+    source_date: "2021-11-20"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "anomaly.ml.isolation_forest_contamination"
+    value: 0.03
+    unit: "fraction"
+    description: "Expected anomaly contamination proportion (3%) used in Isolation Forest training"
+    source: "Empirical Sensor Noise Analysis on Sub-metered Academic Loads"
+    source_date: "2024-03-01"
+    confidence: "medium"
+    applies_to: ["all"]
+
+  - key: "anomaly.alert.dedup_window_hours"
+    value: 4.0
+    unit: "hours"
+    description: "Time window for deduplicating repeated anomaly alarms for identical asset and failure mode"
+    source: "ISA-18.2 / IEC 62682 Management of Alarm Systems for Process Industries"
+    source_date: "2023-09-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  # ── Comfort Parameters (ASHRAE 55 / ISO 7730) ───────────────────────────
+  - key: "comfort.optimal_setpoint_c"
+    value: 24.0
+    unit: "°C"
+    description: "Optimal indoor dry-bulb thermal comfort setpoint temperature"
+    source: "ASHRAE Standard 55-2023 / National Building Code of India 2016 Part 8"
+    source_date: "2023-01-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "comfort.air_velocity_mps"
+    value: 0.15
+    unit: "m/s"
+    description: "Standard indoor design air velocity for still-air mechanical cooling"
+    source: "ASHRAE Standard 55-2023 Table 5.3.3.1"
+    source_date: "2023-01-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "comfort.metabolic_rate_met"
+    value: 1.1
+    unit: "met"
+    description: "Nominal metabolic rate for sedentary office and educational classroom activity (1 met = 58.2 W/m²)"
+    source: "ASHRAE Standard 55-2023 Table 5.2.1.2"
+    source_date: "2023-01-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "comfort.clothing_insulation_clo"
+    value: 0.6
+    unit: "clo"
+    description: "Typical summer clothing thermal insulation (light trousers and short-sleeve shirt)"
+    source: "ASHRAE Standard 55-2023 Table 5.2.2.2B"
+    source_date: "2023-01-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "comfort.ambient_fallback_c"
+    value: 32.0
+    unit: "°C"
+    description: "Default fallback ambient dry-bulb temperature when outdoor weather telemetry is unavailable"
+    source: "IS 7895 / NBC India Design Outdoor Summer Peak Mean for Warm-Humid Zones"
+    source_date: "2022-04-15"
+    confidence: "medium"
+    applies_to: ["all"]
+
+  # ── Water Parameters & HydroSense ───────────────────────────────────────
+  - key: "water.tariff_inr_per_kl"
+    value: 25.0
+    unit: "INR/kL"
+    description: "Municipal bulk institutional water tariff per kilo-liter"
+    source: "Odisha Public Health Engineering Organisation (PHEO) Water Tariff Schedule"
+    source_date: "2024-01-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "water.mnf_start_hour"
+    value: 1
+    unit: "hour"
+    description: "Minimum Night Flow (MNF) acoustic audit window start hour (01:00 AM)"
+    source: "AWWA M36 Water Audits and Loss Control Programs / BS EN 12255"
+    source_date: "2020-06-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "water.mnf_end_hour"
+    value: 5
+    unit: "hour"
+    description: "Minimum Night Flow (MNF) acoustic audit window end hour (05:00 AM)"
+    source: "AWWA M36 Water Audits and Loss Control Programs / BS EN 12255"
+    source_date: "2020-06-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "water.leak_spike_multiplier"
+    value: 3.0
+    unit: "multiplier"
+    description: "Threshold multiplier above median night flow indicating concealed pipe fissure"
+    source: "AWWA M36 Night Flow Burst Detection Methodology"
+    source_date: "2020-06-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "water.leak_absolute_threshold_lph"
+    value: 500.0
+    unit: "L/h"
+    description: "Absolute minimum hourly night flow breach to trigger water pipe rupture alarm"
+    source: "AWWA M36 Standard for Distribution Pipe Integrity"
+    source_date: "2020-06-01"
+    confidence: "high"
+    applies_to: ["all"]

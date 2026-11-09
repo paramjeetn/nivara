@@ -4,7 +4,10 @@ import re
 from typing import Dict, Any
 import pandas as pd
 
-from campus_energy.analytics.esg import calculate_esg_metrics, GRID_EMISSION_FACTOR_KG_PER_KWH
+from campus_energy import assumptions
+from campus_energy.analytics.esg import calculate_esg_metrics
+
+GRID_EMISSION_FACTOR_KG_PER_KWH: float = assumptions.get_value("emissions.grid_factor")
 
 
 def clean_facility_label(label: str) -> str:
@@ -147,9 +150,10 @@ def calculate_state_impact(benchmark_df: pd.DataFrame, num_facilities: int = 100
     total_annual_mwh_saved = round(avg_avoidable_mwh * num_facilities, 1)
     total_financial_savings_cr = round((avg_avoidable_cost_inr * num_facilities) / 10_000_000, 2)
     total_co2_mitigated_tons = round(avg_avoidable_carbon_tons * num_facilities, 1)
-    trees_planted_equivalent = int(total_co2_mitigated_tons * 1000 / 21)
-    # Approx 0.45 tons coal per MWh thermal power plant factor
-    coal_unburned_tons = round(total_annual_mwh_saved * 0.45, 1)
+    tree_seq_kg = assumptions.get_value("sustainability.tree_sequestration_kg_co2_yr")
+    trees_planted_equivalent = int(total_co2_mitigated_tons * 1000 / tree_seq_kg)
+    coal_factor = assumptions.get_value("sustainability.coal_displacement_tons_per_mwh")
+    coal_unburned_tons = round(total_annual_mwh_saved * coal_factor, 1)
 
     return {
         "total_annual_mwh_saved": total_annual_mwh_saved,

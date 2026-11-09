@@ -6,7 +6,9 @@ to departments using sub-meter telemetry (not naive floor-area splits).
 import pandas as pd
 import numpy as np
 
-COST_PER_KWH_INR = 8.5
+from campus_energy import assumptions
+
+COST_PER_KWH_INR: float = assumptions.get_value("tariff.electricity_commercial")
 
 # Asset → Department mapping based on campus config.
 # In a real system this would come from the CMMS / asset registry.

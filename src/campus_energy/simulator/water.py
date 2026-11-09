@@ -13,9 +13,11 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from campus_energy import assumptions
+
 logger = logging.getLogger(__name__)
 
-WATER_TARIFF_INR_PER_KL = 25.0  # ₹25 per kilo-liter (1,000 Liters)
+WATER_TARIFF_INR_PER_KL: float = assumptions.get_value("water.tariff_inr_per_kl")
 
 
 def _classify_building(building_id: str, building_name: str) -> str:
@@ -302,20 +304,26 @@ def analyze_water_data(water_df: pd.DataFrame) -> Dict[str, Any]:
 
     # 5. Detect Leak Events & Build Remediation Queue
     # We check:
-    # a) Night flow (1-5 AM) > 3x typical median night flow
+    # a) Night flow (MNF window) > leak_multiplier * typical median night flow
     # b) Any burst events
     leak_records: List[Dict[str, Any]] = []
 
+    mnf_start = int(assumptions.get_value("water.mnf_start_hour"))
+    mnf_end = int(assumptions.get_value("water.mnf_end_hour"))
+    mnf_hours = list(range(mnf_start, mnf_end))
+    leak_multiplier = float(assumptions.get_value("water.leak_spike_multiplier"))
+    leak_abs_limit = float(assumptions.get_value("water.leak_absolute_threshold_lph"))
+
     # Check for night flow leaks per building
-    night_mask = df["hour"].isin([1, 2, 3, 4])
+    night_mask = df["hour"].isin(mnf_hours)
     night_df = df[night_mask]
 
     for bld in df["building_id"].unique():
         bld_night = night_df[night_df["building_id"] == bld]
-        bld_norm_night = normal_df[(normal_df["building_id"] == bld) & (normal_df["hour"].isin([1, 2, 3, 4]))]
+        bld_norm_night = normal_df[(normal_df["building_id"] == bld) & (normal_df["hour"].isin(mnf_hours))]
         median_mnf = float(bld_norm_night["flow_liters"].median()) if not bld_norm_night.empty else 50.0
 
-        # Group by date to find days with night flow > 3x median_mnf
+        # Group by date to find days with night flow > threshold
         night_by_date = bld_night.groupby("date").agg(
             night_avg_flow=("flow_liters", "mean"),
             night_total_flow=("flow_liters", "sum"),
@@ -323,14 +331,14 @@ def analyze_water_data(water_df: pd.DataFrame) -> Dict[str, Any]:
         ).reset_index()
 
         leak_days = night_by_date[
-            (night_by_date["night_avg_flow"] > max(3.0 * median_mnf, 500.0))
+            (night_by_date["night_avg_flow"] > max(leak_multiplier * median_mnf, leak_abs_limit))
             | (night_by_date["is_anomaly_sum"] > 0)
         ]
 
         if not leak_days.empty:
             start_d = leak_days["date"].min()
             end_d = leak_days["date"].max()
-            dur_hrs = len(leak_days) * 4  # 4 hours per night
+            dur_hrs = len(leak_days) * len(mnf_hours)  # hours per night
             total_leak_vol = max(0.0, float(leak_days["night_total_flow"].sum()) - (median_mnf * dur_hrs))
             leak_kl = round(total_leak_vol / 1000.0, 1)
             cost_loss = round(leak_kl * WATER_TARIFF_INR_PER_KL, 0)

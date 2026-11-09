@@ -12,6 +12,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from campus_energy import assumptions
+
 
 TEAM_MAPPING = {
     "hvac": "HVAC & Thermal Systems Team",
@@ -137,7 +139,7 @@ def estimate_energy_waste(
     severity: str,
     event_type: str | None = None,
 ) -> tuple[float, float]:
-    """Estimate daily waste in kWh and INR (standard tariff ₹8.5/kWh)."""
+    """Estimate daily waste in kWh and INR using assumptions registry tariff."""
     sev_clean = str(severity).lower().strip()
 
     if rated_power_kw is not None and not pd.isna(rated_power_kw) and float(rated_power_kw) > 0:
@@ -155,7 +157,8 @@ def estimate_energy_waste(
         est_kwh = defaults.get(sev_clean, 40.0)
 
     est_kwh = round(max(15.0, est_kwh), 1)
-    est_inr = round(est_kwh * 8.5, 2)
+    cost_per_kwh = assumptions.get_value("tariff.electricity_commercial")
+    est_inr = round(est_kwh * cost_per_kwh, 2)
     return est_kwh, est_inr
 
 

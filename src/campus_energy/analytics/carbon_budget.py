@@ -8,10 +8,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from campus_energy.analytics.esg import (
-    BEE_EPI_BENCHMARKS,
-    GRID_EMISSION_FACTOR_KG_PER_KWH,
-)
+from campus_energy import assumptions
+from campus_energy.analytics.esg import BEE_EPI_BENCHMARKS
 
 
 def calculate_carbon_budget(
@@ -36,13 +34,17 @@ def calculate_carbon_budget(
             - projection_df: DataFrame with projected trajectory up to day 30
     """
     # 1. Determine monthly budget
+    grid_emission_factor: float = assumptions.get_value("emissions.grid_factor")
+    napcc_pct: float = assumptions.get_value("policy.napcc_reduction_target_pct")
+    ceiling_days: float = assumptions.get_value("budget.month_ceiling_days")
+
     if monthly_budget_tco2 is None:
         ecbc_baseline = BEE_EPI_BENCHMARKS.get(
             facility_type, BEE_EPI_BENCHMARKS["university"]
         )["ecbc_baseline"]
-        annual_target_kwh = ecbc_baseline * 0.80 * floor_area_m2
+        annual_target_kwh = ecbc_baseline * (1.0 - napcc_pct / 100.0) * floor_area_m2
         monthly_budget_tco2 = round(
-            (annual_target_kwh / 12.0 * GRID_EMISSION_FACTOR_KG_PER_KWH) / 1000.0, 1
+            (annual_target_kwh / 12.0 * grid_emission_factor) / 1000.0, 1
         )
         monthly_budget_tco2 = max(1.0, monthly_budget_tco2)
     else:
@@ -66,7 +68,7 @@ def calculate_carbon_budget(
             "overshoot_pct": -100.0,
             "burn_rate_tco2_day": 0.0,
             "days_observed": 0,
-            "days_remaining": 30,
+            "days_remaining": int(ceiling_days),
             "daily_curtail_kwh": 0.0,
             "status": "ON_TRACK",
             "alert": "✅ On Track: Facility is projected to stay within the monthly NAPCC carbon budget ceiling.",
@@ -117,11 +119,11 @@ def calculate_carbon_budget(
     # Day index 1..N
     daily["day_index"] = np.arange(1, len(daily) + 1)
     daily["daily_tco2"] = round(
-        daily["daily_kwh"] * GRID_EMISSION_FACTOR_KG_PER_KWH / 1000.0, 3
+        daily["daily_kwh"] * grid_emission_factor / 1000.0, 3
     )
     daily["cumulative_tco2"] = round(daily["daily_tco2"].cumsum(), 3)
     daily["ideal_target_tco2"] = round(
-        (daily["day_index"] / 30.0) * monthly_budget_tco2, 3
+        (daily["day_index"] / ceiling_days) * monthly_budget_tco2, 3
     )
     daily["budget_ceiling_tco2"] = monthly_budget_tco2
 
@@ -131,17 +133,17 @@ def calculate_carbon_budget(
     )
     burn_rate_tco2_day = current_cumulative_tco2 / max(d_obs, 1)
 
-    projected_month_end_tco2 = round(burn_rate_tco2_day * 30.0, 2)
+    projected_month_end_tco2 = round(burn_rate_tco2_day * ceiling_days, 2)
     remaining_budget_tco2 = round(monthly_budget_tco2 - current_cumulative_tco2, 2)
     overshoot_tco2 = max(0.0, round(projected_month_end_tco2 - monthly_budget_tco2, 2))
     overshoot_pct = round(
         ((projected_month_end_tco2 - monthly_budget_tco2) / monthly_budget_tco2) * 100.0, 1
     )
-    days_remaining = max(0, 30 - d_obs)
+    days_remaining = max(0, int(ceiling_days) - d_obs)
 
     # Curtailment calculation: required daily kWh reduction over remaining days to avoid overshoot
     if overshoot_tco2 > 0 and days_remaining > 0:
-        excess_kwh = (overshoot_tco2 * 1000.0) / GRID_EMISSION_FACTOR_KG_PER_KWH
+        excess_kwh = (overshoot_tco2 * 1000.0) / grid_emission_factor
         daily_curtail_kwh = round(excess_kwh / days_remaining, 1)
     else:
         daily_curtail_kwh = 0.0
@@ -183,15 +185,15 @@ def calculate_carbon_budget(
         "floor_area_m2": floor_area_m2,
     }
 
-    # Build projection DataFrame starting from day d_obs up to day 30
+    # Build projection DataFrame starting from day d_obs up to month ceiling day
     last_date = pd.to_datetime(daily["date"].iloc[-1])
     proj_rows = []
     start_day = d_obs if d_obs > 0 else 1
-    for day_idx in range(start_day, 31):
+    for day_idx in range(start_day, int(ceiling_days) + 1):
         delta_days = day_idx - d_obs
         p_date = (last_date + pd.Timedelta(days=int(delta_days))).strftime("%Y-%m-%d")
         p_val = round(current_cumulative_tco2 + max(0, delta_days) * burn_rate_tco2_day, 3)
-        ideal_val = round((day_idx / 30.0) * monthly_budget_tco2, 3)
+        ideal_val = round((day_idx / ceiling_days) * monthly_budget_tco2, 3)
         proj_rows.append(
             {
                 "date": p_date,
