@@ -1,0 +1,86 @@
+facility_id: "university"
+facility_name: "Vidya Institute of Technology"
+facility_type: "university"
+location: "Bhubaneswar, Odisha"
+floor_area_m2: 12000.0
+peak_occupancy: 2500
+data_dir: "data/generated"
+config: "configs/simulation.yaml"
+icon: "🎓"
+tariff_profile: "odisha_cesu_commercial_educational"
+compliance_frameworks:
+  - "BEE Star Rating"
+  - "ECBC 2017"
+  - "ISO 50001"
+  - "NAAC Green Audit"
+default_roles:
+  - "administrator"
+  - "operations"
+  - "sustainability"
+comfort_bounds:
+  classrooms:
+    min_pmv: -0.5
+    max_pmv: 0.5
+    temp_min_c: 23.0
+    temp_max_c: 26.0
+  labs:
+    min_pmv: -0.3
+    max_pmv: 0.3
+    temp_min_c: 21.0
+    temp_max_c: 24.0
+  admin:
+    min_pmv: -0.5
+    max_pmv: 0.5
+    temp_min_c: 23.0
+    temp_max_c: 26.0
+  general:
+    min_pmv: -0.5
+    max_pmv: 0.5
+    temp_min_c: 22.0
+    temp_max_c: 26.0
+  library:
+    min_pmv: -0.4
+    max_pmv: 0.4
+    temp_min_c: 22.0
+    temp_max_c: 25.0
+  hostel:
+    min_pmv: -0.6
+    max_pmv: 0.6
+    temp_min_c: 22.0
+    temp_max_c: 27.0
+protected_loads:
+  - asset_id: "EQ-A-CL01-PC"
+    asset_name: "Computer Lab 1 PCs"
+    zone_id: "BLD-A-CL01"
+    category: "critical_it"
+    curtailable: false
+    min_power_kw: 6.0
+    reason: "Academic examination servers and continuous educational computing workloads."
+  - asset_id: "EQ-A-CL02-PC"
+    asset_name: "Computer Lab 2 PCs"
+    zone_id: "BLD-A-CL02"
+    category: "critical_it"
+    curtailable: false
+    min_power_kw: 4.5
+    reason: "Scheduled instructional laboratory and campus network compute node."
+  - asset_id: "EQ-B-LAB1-EQ"
+    asset_name: "Laboratory 1 Equipment"
+    zone_id: "BLD-B-LAB1"
+    category: "research_lab"
+    curtailable: false
+    min_power_kw: 2.0
+    reason: "High-precision physics and chemistry lab instrumentation sensitive to power interruption."
+  - asset_id: "EQ-LIB-CA-PC"
+    asset_name: "Computer Area PCs"
+    zone_id: "BLD-LIB-CA"
+    category: "critical_it"
+    curtailable: false
+    min_power_kw: 3.0
+    reason: "Central digital library catalog and scholarly repository terminals."
+  - asset_id: "EQ-UTL-P1-PM"
+    asset_name: "Water Pump 1"
+    zone_id: "BLD-UTL-P1"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 7.5
+    reason: "Essential campus potable water supply and primary firefighting hydrant pressurization."

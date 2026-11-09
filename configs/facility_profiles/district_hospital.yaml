@@ -1,0 +1,109 @@
+facility_id: "district_hospital"
+facility_name: "Rajiv Gandhi District Hospital"
+facility_type: "hospital"
+location: "Cuttack, Odisha"
+floor_area_m2: 8500.0
+peak_occupancy: 420
+data_dir: "data/hospital"
+config: "configs/hospital.yaml"
+icon: "🏥"
+tariff_profile: "odisha_cesu_hospital_essential"
+compliance_frameworks:
+  - "NABH Guidelines"
+  - "ECBC 2017"
+  - "BEE Star Rating"
+  - "ISO 50001"
+  - "Bio-Medical Waste Management Rules 2016"
+default_roles:
+  - "administrator"
+  - "medical_superintendent"
+  - "operations"
+  - "sustainability"
+comfort_bounds:
+  icu:
+    min_pmv: -0.2
+    max_pmv: 0.2
+    temp_min_c: 21.0
+    temp_max_c: 24.0
+  ot:
+    min_pmv: -0.2
+    max_pmv: 0.2
+    temp_min_c: 20.0
+    temp_max_c: 22.0
+  wards:
+    min_pmv: -0.3
+    max_pmv: 0.3
+    temp_min_c: 22.0
+    temp_max_c: 25.0
+  opd:
+    min_pmv: -0.5
+    max_pmv: 0.5
+    temp_min_c: 22.0
+    temp_max_c: 26.0
+  cold_chain:
+    min_pmv: -0.2
+    max_pmv: 0.2
+    temp_min_c: 2.0
+    temp_max_c: 8.0
+  general:
+    min_pmv: -0.4
+    max_pmv: 0.4
+    temp_min_c: 22.0
+    temp_max_c: 25.0
+protected_loads:
+  - asset_id: "EQ-IPD-ICU-EQ"
+    asset_name: "ICU Life Support & Monitors"
+    zone_id: "BLD-IPD-ICU"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 6.0
+    reason: "Continuous patient hemodynamics, mechanical ventilators, and life-critical cardiac monitoring."
+  - asset_id: "EQ-IPD-ICU-AC"
+    asset_name: "ICU Precision HVAC"
+    zone_id: "BLD-IPD-ICU"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 8.0
+    reason: "Strict particulate filtration, positive room pressure, and temperature maintenance for critical care."
+  - asset_id: "EQ-OT-OT1-EQ"
+    asset_name: "OT Equipment (Anesthesia, Monitors)"
+    zone_id: "BLD-OT-OT1"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 5.0
+    reason: "Intraoperative anesthesia delivery, surgical monitors, and active patient surgical systems."
+  - asset_id: "EQ-OT-OT1-LT"
+    asset_name: "OT Surgical Lights"
+    zone_id: "BLD-OT-OT1"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 3.0
+    reason: "High-intensity shadowless surgical field illumination for active operations."
+  - asset_id: "EQ-OT-OT1-AC"
+    asset_name: "OT Laminar Flow HVAC"
+    zone_id: "BLD-OT-OT1"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 12.0
+    reason: "Ultra-clean laminar airflow and air changes to prevent surgical site infections."
+  - asset_id: "EQ-IPD-CCR-AC"
+    asset_name: "Cold Chain Refrigeration Units"
+    zone_id: "BLD-IPD-CCR"
+    category: "cold_chain"
+    curtailable: false
+    min_power_kw: 6.0
+    reason: "Preservation of vaccines, whole blood units, and temperature-sensitive biologicals at 2°C to 8°C."
+  - asset_id: "EQ-OPD-LAB-EQ"
+    asset_name: "Lab Analyzers"
+    zone_id: "BLD-OPD-LAB"
+    category: "critical_it"
+    curtailable: false
+    min_power_kw: 2.5
+    reason: "Pathology diagnostic analyzers processing urgent blood samples and emergency test panels."
+  - asset_id: "EQ-UTL-H-GEN-DG"
+    asset_name: "DG Set (standby load monitoring)"
+    zone_id: "BLD-UTL-H-GEN"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 1.5
+    reason: "Critical hospital standby generator health monitoring and auto-transfer switchgear."

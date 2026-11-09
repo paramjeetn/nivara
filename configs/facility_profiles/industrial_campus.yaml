@@ -1,0 +1,77 @@
+facility_id: "industrial_campus"
+facility_name: "Kalinga Industrial Estate"
+facility_type: "industrial"
+location: "Kalinganagar, Odisha"
+floor_area_m2: 18000.0
+peak_occupancy: 600
+data_dir: "data/industrial"
+config: "configs/industrial.yaml"
+icon: "🏭"
+tariff_profile: "odisha_cesu_industrial_ht"
+compliance_frameworks:
+  - "BEE PAT Scheme"
+  - "ISO 50001"
+  - "Factories Act 1948"
+  - "CPCB Emission Standards"
+default_roles:
+  - "administrator"
+  - "plant_head"
+  - "operations"
+  - "sustainability"
+comfort_bounds:
+  shopfloor:
+    min_pmv: -0.8
+    max_pmv: 0.8
+    temp_min_c: 20.0
+    temp_max_c: 28.0
+  control_room:
+    min_pmv: -0.3
+    max_pmv: 0.3
+    temp_min_c: 21.0
+    temp_max_c: 24.0
+  office:
+    min_pmv: -0.5
+    max_pmv: 0.5
+    temp_min_c: 22.0
+    temp_max_c: 26.0
+  general:
+    min_pmv: -0.7
+    max_pmv: 0.7
+    temp_min_c: 20.0
+    temp_max_c: 27.0
+protected_loads:
+  - asset_id: "EQ-PROD-A-MF1-EQ"
+    asset_name: "Assembly Line Machines"
+    zone_id: "BLD-PROD-A-MF1"
+    category: "continuous_process"
+    curtailable: false
+    min_power_kw: 45.0
+    reason: "Continuous automated assembly line drives; power cut causes severe tooling damage and batch scrap."
+  - asset_id: "EQ-UTL-I-P1-PM"
+    asset_name: "Industrial Coolant Pump"
+    zone_id: "BLD-UTL-I-P1"
+    category: "continuous_process"
+    curtailable: false
+    min_power_kw: 12.0
+    reason: "Furnace cooling and heat dissipation loop; cooling loss triggers emergency thermal shutdown."
+  - asset_id: "EQ-PROD-B-MF2-AC"
+    asset_name: "Fume Extraction HVAC"
+    zone_id: "BLD-PROD-B-MF2"
+    category: "life_safety"
+    curtailable: false
+    min_power_kw: 16.0
+    reason: "Hazardous welding fume extraction and toxic gas negative pressure exhaust per worker safety codes."
+  - asset_id: "EQ-PROD-A-COMP-CM"
+    asset_name: "Air Compressor 1"
+    zone_id: "BLD-PROD-A-COMP"
+    category: "continuous_process"
+    curtailable: false
+    min_power_kw: 18.0
+    reason: "Main pneumatic header pressure supplying automated assembly robots and fail-safe brakes."
+  - asset_id: "EQ-ADMIN-I-CTL-PC"
+    asset_name: "SCADA Workstations"
+    zone_id: "BLD-ADMIN-I-CTL"
+    category: "critical_it"
+    curtailable: false
+    min_power_kw: 2.5
+    reason: "Plant-wide SCADA monitoring, safety interlock controllers, and emergency alarm console."

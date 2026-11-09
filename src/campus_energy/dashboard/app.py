@@ -83,42 +83,49 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Facility Definitions
+# Facility Definitions (Dynamic Discovery from Facility Profiles)
 # ─────────────────────────────────────────────────────────────────────────────
+from campus_energy.profiles import load_all_profiles, FacilityProfile
+
+try:
+    _LOADED_PROFILES = load_all_profiles("config/facility_profiles")
+except Exception:
+    try:
+        _LOADED_PROFILES = load_all_profiles("configs/facility_profiles")
+    except Exception:
+        _LOADED_PROFILES = {}
+
+def _build_facility_display_label(profile: FacilityProfile) -> str:
+    icon = getattr(profile, "icon", "🏢")
+    type_display_map = {
+        "university": "University",
+        "hospital": "District Hospital",
+        "district_hospital": "District Hospital",
+        "govt_office": "Government Office",
+        "government_office": "Government Office",
+        "industrial": "Industrial Campus",
+        "industrial_campus": "Industrial Campus",
+    }
+    type_label = type_display_map.get(profile.facility_type, profile.facility_type.replace("_", " ").title())
+    return f"{icon} {type_label} — {profile.facility_name}"
+
 FACILITY_OPTIONS = {
-    "🎓 University — Vidya Institute of Technology": {
-        "key": "university",
-        "data_dir": Path("data/generated"),
-        "config": "configs/simulation.yaml",
-        "floor_area_m2": 12000,
-        "peak_occupancy": 2500,
-        "location": "Bhubaneswar, Odisha",
-    },
-    "🏥 District Hospital — Rajiv Gandhi Hospital": {
-        "key": "hospital",
-        "data_dir": Path("data/hospital"),
-        "config": "configs/hospital.yaml",
-        "floor_area_m2": 8500,
-        "peak_occupancy": 420,
-        "location": "Cuttack, Odisha",
-    },
-    "🏛️ Government Office — Collectorate Complex": {
-        "key": "govt_office",
-        "data_dir": Path("data/govt_office"),
-        "config": "configs/govt_office.yaml",
-        "floor_area_m2": 5200,
-        "peak_occupancy": 350,
-        "location": "Bhubaneswar, Odisha",
-    },
-    "🏭 Industrial Campus — Kalinga Industrial Estate": {
-        "key": "industrial",
-        "data_dir": Path("data/industrial"),
-        "config": "configs/industrial.yaml",
-        "floor_area_m2": 18000,
-        "peak_occupancy": 600,
-        "location": "Kalinganagar, Odisha",
-    },
+    _build_facility_display_label(prof): prof
+    for prof in _LOADED_PROFILES.values()
 }
+
+# Fallback dictionary if no profiles directory found
+if not FACILITY_OPTIONS:
+    FACILITY_OPTIONS = {
+        "🎓 University — Vidya Institute of Technology": {
+            "key": "university",
+            "data_dir": Path("data/generated"),
+            "config": "configs/simulation.yaml",
+            "floor_area_m2": 12000,
+            "peak_occupancy": 2500,
+            "location": "Bhubaneswar, Odisha",
+        }
+    }
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants & Data Loading
@@ -246,12 +253,17 @@ with st.sidebar:
     # Show generate hint if data missing
     fac_data_dir = facility_meta["data_dir"]
     if not (fac_data_dir / "telemetry.csv").exists():
+        conf_hint = facility_meta.get("config", f"configs/{facility_type}.yaml")
         st.warning(
             f"⚠️ No data for this facility yet.\n\n"
-            f"Run:\n```\ngenerate-data --config {facility_meta['config']} --output-dir {fac_data_dir}\n```"
+            f"Run:\n```\ngenerate-data --config {conf_hint} --output-dir {fac_data_dir}\n```"
         )
 
-    st.caption(f"📍 {facility_meta['location']} · {facility_meta['floor_area_m2']:,} m² · {facility_meta['peak_occupancy']:,} peak occupancy")
+    st.caption(f"📍 {facility_meta['location']} · {floor_area_m2:,} m² · {facility_meta['peak_occupancy']:,} peak occupancy")
+    compliance_frameworks = getattr(facility_meta, "compliance_frameworks", []) or ["BEE Star Rating", "ECBC 2017"]
+    protected_loads_list = getattr(facility_meta, "protected_loads", [])
+    st.caption(f"🛡️ Protected Loads: **{len(protected_loads_list)} non-curtailable**")
+    st.caption(f"📜 Compliance: **{', '.join(compliance_frameworks)}**")
     st.divider()
 
     page = st.radio(
@@ -800,9 +812,17 @@ elif "Governance" in page:
     st.markdown("### 📊 Cross-Facility Performance & BEE Benchmarks")
     st.caption("Side-by-side comparison of conditioned area, annual consumption, ECBC compliance, and carbon intensity.")
 
+    # Attach protected load counts to governance table
+    bench_df["Protected Loads"] = bench_df["Facility Type"].apply(
+        lambda ft: f"🛡️ {len(_LOADED_PROFILES[ft].protected_loads)} Protected"
+        if ft in _LOADED_PROFILES
+        else "N/A"
+    )
+
     display_cols = [
         "Facility",
         "Facility Type",
+        "Protected Loads",
         "Floor Area (m²)",
         "Peak Occupancy",
         "Annual Energy (MWh)",
@@ -821,6 +841,29 @@ elif "Governance" in page:
         use_container_width=True,
         hide_index=True,
     )
+
+    # ── Section 1B: Mission-Critical Protected Loads & Service Protection ─────
+    st.markdown("### 🛡️ Mission-Critical Protected Loads & Service-Impact Constraints")
+    st.caption("Critical infrastructure and clinical assets with non-curtailable constraints (`🛡️ Protected Load: Non-Curtailable`).")
+
+    cur_prot_loads = getattr(facility_meta, "protected_loads", [])
+    if cur_prot_loads:
+        prot_rows = [
+            {
+                "Status": "🛡️ Protected Load: Non-Curtailable",
+                "Asset ID": pl.asset_id,
+                "Asset Name": pl.asset_name,
+                "Zone ID": pl.zone_id or "Whole Facility",
+                "Criticality Class": pl.category.replace("_", " ").title(),
+                "Min Power (kW)": f"{pl.min_power_kw:.1f} kW" if pl.min_power_kw else "Unspecified",
+                "Curtailable": "❌ False (Protected)",
+                "Statutory & Operational Reason": pl.reason,
+            }
+            for pl in cur_prot_loads
+        ]
+        st.dataframe(pd.DataFrame(prot_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No non-curtailable protected loads registered for this facility profile.")
 
     st.markdown("<br>", unsafe_allow_html=True)
     c_chart1, c_chart2 = st.columns(2)
@@ -1273,6 +1316,9 @@ elif "Campus Map" in page:
                 alert_type_str = bld_alert.anomaly_type.replace("_", " ").title() if has_alert else ""
                 alert_evid_str = bld_alert.evidence if has_alert else ""
 
+                is_bld_prot = hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(row["asset_id"])
+                bld_prot_load = facility_meta.get_protected_load(row["asset_id"]) if is_bld_prot else None
+
                 if has_alert:
                     color = [239, 68, 68, 255] # Red
                 elif power < 2.0:
@@ -1300,6 +1346,9 @@ elif "Campus Map" in page:
                     "dot_size": 24,
                     "is_meter": True,
                     "is_comfort": False,
+                    "is_protected": is_bld_prot,
+                    "prot_category": bld_prot_load.category if bld_prot_load else "",
+                    "prot_reason": bld_prot_load.reason if bld_prot_load else "",
                     "alert": has_alert,
                     "alert_type": alert_type_str,
                     "alert_desc": alert_evid_str or "Optimal baseline conformance",
@@ -1357,6 +1406,9 @@ elif "Campus Map" in page:
             alert_type_str = eq_alert.anomaly_type.replace("_", " ").title() if has_alert else ""
             alert_evid_str = eq_alert.evidence if has_alert else ""
 
+            is_eq_prot = hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(a_id)
+            eq_prot_load = facility_meta.get_protected_load(a_id) if is_eq_prot else None
+
             if has_alert:
                 color = [239, 68, 68, 255] # Red pulsing
             elif power > 0.5:
@@ -1384,6 +1436,9 @@ elif "Campus Map" in page:
                 "dot_size": 14,
                 "is_meter": False,
                 "is_comfort": False,
+                "is_protected": is_eq_prot,
+                "prot_category": eq_prot_load.category if eq_prot_load else "",
+                "prot_reason": eq_prot_load.reason if eq_prot_load else "",
                 "alert": has_alert,
                 "alert_type": alert_type_str,
                 "alert_desc": alert_evid_str or "Normal sub-meter reading",
@@ -1650,11 +1705,18 @@ map.on('style.load', () => {{
           <span style="color:#cbd5e1;font-size:11px;">${{row.alert_desc}}</span>
         </div>` : '';
 
+      const protSection = row.is_protected ? `
+        <div style="background:rgba(59,130,246,0.2);border:1px solid #3b82f6;border-radius:4px;padding:4px 8px;margin-top:6px;margin-bottom:6px;">
+          <span style="color:#60a5fa;font-weight:bold;font-size:11px;">🛡️ Protected Load: Non-Curtailable</span><br>
+          <span style="color:#cbd5e1;font-size:10px;">${{row.prot_reason || 'Mission-critical asset protected from curtailment'}}</span>
+        </div>` : '';
+
       popupHtml = `
         <div style="border-bottom:1px solid #334155;padding-bottom:6px;margin-bottom:6px;">
           <b style="font-size:13px;color:#38bdf8">${{row.name}}</b><br>
           <span style="color:#94a3b8;font-size:11px;">${{row.category}} · ${{row.zone}}</span>
         </div>
+        ${{protSection}}
         <table style="width:100%;font-size:11px;color:#cbd5e1;border-collapse:collapse;">
           <tr><td style="color:#94a3b8">Current Load:</td><td style="text-align:right;font-weight:bold;color:#f8fafc">${{row.power_kw}} kW</td></tr>
           <tr><td style="color:#94a3b8">Today's Peak:</td><td style="text-align:right;font-weight:bold">${{row.peak_kw}} kW</td></tr>
@@ -1721,10 +1783,16 @@ map.on('style.load', () => {{
         # Interactive sensor table for the active date
         st.subheader(f"📋 Live Sensor Inventory & Telemetry ({display_date_str} {display_time_str[-5:]})")
 
-        show_df = df_map[["id", "name", "category", "building", "power_kw", "peak_kw", "day_kwh", "temp_c", "alert"]].rename(
+        df_map["Load Status"] = df_map["id"].apply(
+            lambda aid: "🛡️ Protected Load: Non-Curtailable"
+            if hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(aid)
+            else "Curtailable / Flexible"
+        )
+        show_df = df_map[["id", "name", "category", "building", "Load Status", "power_kw", "peak_kw", "day_kwh", "temp_c", "alert"]].rename(
             columns={
                 "id": "Sensor ID", "name": "Asset Name", "category": "Layer",
-                "building": "Building", "power_kw": "Live Load (kW)",
+                "building": "Building", "Load Status": "Protected Status",
+                "power_kw": "Live Load (kW)",
                 "peak_kw": "Peak Today (kW)", "day_kwh": "Total Today (kWh)",
                 "temp_c": "Zone Temp", "alert": "Anomaly Flag"
             }
@@ -2155,10 +2223,24 @@ elif "Alerts" in page:
         for alert in sorted(filtered_alerts, key=lambda a: a.detected_at, reverse=True)[:20]:
             sev = alert.severity.value
             css = card_class(sev)
+            is_prot = hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(alert.asset_id)
+            prot_load = facility_meta.get_protected_load(alert.asset_id) if is_prot else None
+            prot_badge_title = " 🛡️ [PROTECTED LOAD]" if is_prot else ""
             with st.expander(
-                f"[{sev.upper()}] {alert.anomaly_type.replace('_',' ').title()} — {alert.asset_id}",
+                f"[{sev.upper()}]{prot_badge_title} {alert.anomaly_type.replace('_',' ').title()} — {alert.asset_id}",
                 expanded=(sev == "critical"),
             ):
+                if is_prot:
+                    st.markdown(
+                        f"""
+                        <div style="background:rgba(59,130,246,0.15); border:1px solid #3b82f6; border-radius:6px; padding:8px 12px; margin-bottom:10px;">
+                            <span style="color:#60a5fa; font-weight:700; font-size:0.85rem;">🛡️ Protected Load: Non-Curtailable</span>
+                            <span style="color:#94a3b8; font-size:0.8rem; margin-left:8px;">Class: <b>{prot_load.category.replace('_', ' ').title() if prot_load else 'Critical'}</b></span>
+                            <div style="color:#cbd5e1; font-size:0.82rem; margin-top:3px;"><b>Safety/Service Constraint:</b> {prot_load.reason if prot_load else 'Essential facility asset'}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
                 c1, c2 = st.columns(2)
                 c1.markdown(f"**Building:** `{alert.building_id}`")
                 c2.markdown(f"**Zone:** `{alert.zone_id or 'N/A'}`")
@@ -3040,15 +3122,45 @@ elif "Asset Explorer" in page:
         else:
             filtered_assets = assets
 
-        asset_name = st.selectbox("Select Asset", filtered_assets["asset_name"].tolist())
+        def _format_asset_label(name: str) -> str:
+            matching = assets[assets["asset_name"] == name]
+            if not matching.empty:
+                aid = matching["asset_id"].iloc[0]
+                if hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(aid):
+                    return f"🛡️ {name} [Protected]"
+            return name
+
+        asset_name = st.selectbox("Select Asset", filtered_assets["asset_name"].tolist(), format_func=_format_asset_label)
         a_id = assets[assets["asset_name"] == asset_name]["asset_id"].iloc[0]
 
     with col_info:
         a_row = assets[assets["asset_id"] == a_id].iloc[0]
+        is_prot = hasattr(facility_meta, "is_asset_protected") and facility_meta.is_asset_protected(a_id)
+        prot_load = facility_meta.get_protected_load(a_id) if is_prot else None
+
+        if is_prot:
+            st.markdown(
+                f"""
+                <div style="background:rgba(59,130,246,0.15); border:1px solid #3b82f6; border-radius:6px; padding:10px 14px; margin-bottom:12px;">
+                    <div style="color:#60a5fa; font-weight:700; font-size:0.92rem;">
+                        🛡️ Protected Load: Non-Curtailable
+                    </div>
+                    <div style="color:#cbd5e1; font-size:0.82rem; margin-top:3px;">
+                        <b>Category:</b> {prot_load.category.replace('_', ' ').title() if prot_load else 'Critical'} &nbsp;|&nbsp;
+                        <b>Min Power:</b> {prot_load.min_power_kw or 'N/A'} kW<br>
+                        <b>Operational Reason:</b> {prot_load.reason if prot_load else 'Essential mission-critical equipment'}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        status_text = "🛡️ Protected Load: Non-Curtailable" if is_prot else "Curtailable / Flexible"
         st.markdown(f"""
         | Field | Value |
         |-------|-------|
         | **Asset ID** | `{a_row['asset_id']}` |
+        | **Load Status** | **{status_text}** |
         | **Type** | `{a_row['asset_type']}` |
         | **Building** | `{a_row['building_id']}` |
         | **Zone** | `{a_row.get('zone_id', 'N/A')}` |
