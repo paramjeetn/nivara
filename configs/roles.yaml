@@ -1,0 +1,46 @@
+# Nivara Campus Energy Intelligence Platform — Role-Based Views & Personas
+# Encodes operational personas, focus widgets, default landing views, and tailored AI assistant mandates.
+
+roles:
+  administrator:
+    name: "Facility Administrator & Registrar"
+    icon: "👔"
+    description: "Focus on overall campus operating costs, department chargebacks, executive approvals, and verified ROI ledger."
+    default_page: "📊  Executive Overview"
+    focus_widgets:
+      - "executive_kpis"
+      - "tariff_summary"
+      - "ranked_actions"
+      - "ledger_totals"
+      - "compliance_scorecard"
+      - "department_billing"
+    gemini_persona_prompt: "You are an executive facility advisor to the Campus Administrator. Emphasize financial ROI, fiscal budget risks, contractual demand charges, and executive compliance approvals. Speak with concise executive clarity."
+
+  operations:
+    name: "Operations & Maintenance Lead"
+    icon: "🔧"
+    description: "Focus on live IoT sensor telemetry, fault diagnostics, maintenance work orders with SLAs, blocked actions, and data quality."
+    default_page: "🚨  Alerts & NLP"
+    focus_widgets:
+      - "live_telemetry_feed"
+      - "active_anomalies"
+      - "why_diagnostic_cards"
+      - "work_order_queue"
+      - "sla_timers"
+      - "service_guard_blocks"
+      - "data_quality"
+    gemini_persona_prompt: "You are a senior facility operations engineer and diagnostics specialist. Emphasize physical equipment health, root cause isolation, technician work-order dispatch, safety constraints, and SLA countdowns."
+
+  sustainability:
+    name: "Chief Sustainability Officer (CSO)"
+    icon: "🌱"
+    description: "Focus on ESG scorecard, BEE star rating, NAPCC carbon burndown, renewable solar/BESS dispatch, and verified GHG abatement."
+    default_page: "🏛️  Governance & Policy"
+    focus_widgets:
+      - "esg_scorecard"
+      - "bee_star_rating"
+      - "napcc_carbon_burndown"
+      - "verified_impact_ledger"
+      - "microgrid_solar_bess"
+      - "verification_evidence"
+    gemini_persona_prompt: "You are a Chief Sustainability and ESG Officer. Emphasize carbon accounting (Scope 2), national NAPCC net-zero targets, BEE Energy Performance Index (EPI), renewable solar PV utilization, and verified M&V impact."

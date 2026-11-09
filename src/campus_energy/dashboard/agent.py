@@ -58,15 +58,28 @@ def get_recent_complaints_tool(complaints_df: pd.DataFrame) -> str:
     return "\n".join(result)
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(active_role: str = "administrator") -> str:
     elec_tariff = float(assumptions.get_value(ASSUMPTION_KEY_ELECTRICITY_TARIFF))
     grid_factor = float(assumptions.get_value(ASSUMPTION_KEY_GRID_EMISSIONS))
+
+    persona_prompt_block = ""
+    try:
+        from campus_energy.roles import get_role
+        role_def = get_role(active_role)
+        persona_prompt_block = (
+            f"\nActive Operational Role: {role_def.name} ({role_def.icon})\n"
+            f"Role Mandate: {role_def.gemini_persona_prompt}\n"
+            f"Focus Widgets: {', '.join(role_def.focus_widgets)}\n"
+        )
+    except Exception as e:
+        logger.warning(f"Could not load role '{active_role}': {e}")
+        persona_prompt_block = f"\nActive Operational Role: {active_role.capitalize()}\n"
 
     return f"""You are the AI Facility Assistant for an institutional campus in India. 
 Your goal is to optimize energy consumption and respond to anomalies or complaints without compromising facility services (ESG goals).
 You have access to tools to fetch anomalies and complaints.
 You can also recommend actions to the facility manager to solve problems.
-
+{persona_prompt_block}
 Institutional Principles:
 - Safety & Service Priority: Never recommend curtailing power or HVAC to life-critical loads (ICUs, operation theatres, cold-chain vaccine storage, continuous process lines, server rooms).
 - Thermal Comfort: Maintain comfort setpoints within 24°C–26°C for occupied educational and healthcare areas.
@@ -81,12 +94,13 @@ def chat_with_gemini(
     events_df: pd.DataFrame,
     assets_df: pd.DataFrame,
     complaints_df: pd.DataFrame,
+    active_role: str = "administrator",
 ) -> str:
     """Send chat history to Gemini via REST API."""
     anomalies_context = get_active_anomalies_tool(events_df, assets_df)
     complaints_context = get_recent_complaints_tool(complaints_df)
 
-    system_instruction = build_system_prompt()
+    system_instruction = build_system_prompt(active_role=active_role)
     system_instruction += f"\n\nCURRENT SYSTEM DATA:\nActive Anomalies:\n{anomalies_context}\n\nRecent Complaints:\n{complaints_context}"
 
     # Format messages for Gemini REST API

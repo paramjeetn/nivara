@@ -243,9 +243,9 @@ def get_or_create_savings_ledger(
     return st.session_state[key]
 
 
-def render_service_guard_demo_expander(facility_profile: Any):
+def render_service_guard_demo_expander(facility_profile: Any, expanded: bool = False):
     """Render the dedicated '🛡️ Blocked by Service Guard (Jury Demo Moment)' expander."""
-    with st.expander("🛡️ Blocked by Service Guard (Jury Demo Moment)", expanded=False):
+    with st.expander("🛡️ Blocked by Service Guard (Jury Demo Moment)", expanded=expanded):
         st.markdown(
             """
             > **The Nivara Safety Principle:** Energy efficiency optimization must **never** compromise
@@ -705,22 +705,70 @@ with st.sidebar:
     st.caption(f"{gw_status['status_badge']}")
     st.divider()
 
+    # ── Step 12: Role-Based Views & Personas ──
+    from campus_energy.roles import load_roles, get_role
+    try:
+        roles = load_roles("config/roles.yaml")
+    except Exception:
+        try:
+            roles = load_roles("configs/roles.yaml")
+        except Exception:
+            roles = {}
+
+    selected_role_key = st.sidebar.selectbox(
+        "👤 Persona View",
+        ["administrator", "operations", "sustainability"],
+        format_func=lambda k: f"{roles[k].icon} {roles[k].name}" if k in roles else k.capitalize(),
+        help="Tailor dashboard priority, KPI emphasis, and AI assistant scope to your operational role.",
+    )
+    current_role = roles.get(selected_role_key)
+
+    if current_role:
+        st.sidebar.markdown(
+            f"""
+            <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin-top: 2px; margin-bottom: 12px; font-size: 0.80rem; color: #cbd5e1;">
+                <div style="font-weight: 600; color: #f8fafc; margin-bottom: 2px;">{current_role.icon} {current_role.name}</div>
+                <div style="line-height: 1.3; color: #94a3b8; font-size: 0.75rem;">{current_role.description}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    nav_pages = [
+        "📊  Executive Overview",
+        "🏛️  Governance & Policy",
+        "🗺️  3D Campus Map",
+        "🤖  AI Forecasting",
+        "🚨  Alerts & NLP",
+        "💧  Water Intelligence",
+        "🔋  Microgrid Dispatch",
+        "💸  Department Billing",
+        "🔍  Asset Explorer",
+        "💬  AI Assistant",
+    ]
+
+    default_target_page = current_role.default_page if current_role else nav_pages[0]
+
+    if "active_persona_key" not in st.session_state:
+        st.session_state["active_persona_key"] = selected_role_key
+        st.session_state["selected_nav_page"] = default_target_page
+    elif st.session_state["active_persona_key"] != selected_role_key:
+        st.session_state["active_persona_key"] = selected_role_key
+        st.session_state["selected_nav_page"] = default_target_page
+
+    page_idx = 0
+    if "selected_nav_page" in st.session_state and st.session_state["selected_nav_page"] in nav_pages:
+        page_idx = nav_pages.index(st.session_state["selected_nav_page"])
+
     page = st.radio(
         "Navigate",
-        [
-            "📊  Executive Overview",
-            "🏛️  Governance & Policy",
-            "🗺️  3D Campus Map",
-            "🤖  AI Forecasting",
-            "🚨  Alerts & NLP",
-            "💧  Water Intelligence",
-            "🔋  Microgrid Dispatch",
-            "💸  Department Billing",
-            "🔍  Asset Explorer",
-            "💬  AI Assistant",
-        ],
+        nav_pages,
+        index=page_idx,
         label_visibility="collapsed",
     )
+    st.session_state["selected_nav_page"] = page
 
     st.divider()
 
@@ -876,6 +924,34 @@ if "Executive" in page:
     st.title("📊 Executive Overview — ESG & Sustainability")
     st.caption(f"28-day simulation period · Last data point: {latest_ts.strftime('%Y-%m-%d %H:%M')} · Facility: {selected_facility_label}")
 
+    if selected_role_key == "administrator":
+        st.markdown(
+            """
+            <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>👔 Administrator View Focus:</b> Executive cost governance, utility tariff demand charges, verified financial ROI ledger totals, and prioritized high-payback actions.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif selected_role_key == "sustainability":
+        st.markdown(
+            """
+            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>🌱 Sustainability View Focus:</b> BEE Star Rating & EPI benchmarks, Scope 2 emissions accounting, NAPCC 20% Net-Zero burn-down trajectory, and verified carbon abatement.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif selected_role_key == "operations":
+        st.markdown(
+            """
+            <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>🔧 Operations View Focus:</b> Operational equipment health, avoidable fault waste tracking, non-curtailable load constraints, and technician work orders.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     render_assumptions_expander([
         "tariff.electricity_commercial",
         "emissions.grid_factor",
@@ -906,15 +982,17 @@ if "Executive" in page:
     # ── Top KPI row ──
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("🔌 Total Energy", f"{kpis['total_energy_kwh']:,.0f} kWh")
-    c2.metric("💰 Total Cost", f"₹{kpis['total_cost_inr']:,.0f}")
+    cost_label = "💰 Total Cost 👔" if selected_role_key == "administrator" else "💰 Total Cost"
+    c2.metric(cost_label, f"₹{kpis['total_cost_inr']:,.0f}")
     c3.metric("☁️ Carbon Emitted", f"{kpis['total_carbon_tons']:.1f} t CO₂")
     c4.metric("♻️ Avoidable Waste", f"{kpis['wasted_kwh']:,.0f} kWh",
               delta=f"-{kpis['waste_pct']}%", delta_color="inverse")
     avoid_cost = p1_summary.cumulative_estimated_inr if p1_summary.cumulative_estimated_inr > 0 else kpis["avoidable_cost_inr"]
     avoid_low = round(avoid_cost * 0.80, 0)
     avoid_high = round(avoid_cost * 1.25, 0)
+    savings_label = "💡 Potential Savings 👔" if selected_role_key == "administrator" else "💡 Potential Savings"
     c5.metric(
-        "💡 Potential Savings",
+        savings_label,
         f"Expected: ₹{avoid_cost:,.0f}",
         delta=f"Range: ₹{avoid_low:,.0f} – ₹{avoid_high:,.0f}",
         delta_color="off",
@@ -923,7 +1001,12 @@ if "Executive" in page:
 
     # ── Headline Closed-Loop M&V Verification Metrics (Step 10) ──
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("##### 🎯 Closed-Loop M&V Verified Metrics (IPMVP Option B)")
+    ledger_badge = ""
+    if selected_role_key == "administrator":
+        ledger_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Verified ROI</span>"
+    elif selected_role_key == "sustainability":
+        ledger_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Focus: Scope 2 Abatement</span>"
+    st.markdown(f"##### 🎯 Closed-Loop M&V Verified Metrics (IPMVP Option B){ledger_badge}", unsafe_allow_html=True)
     m_head1, m_head2, m_head3, m_head4 = st.columns(4)
     m_head1.metric(
         "💰 Total Avoided Cost",
@@ -953,7 +1036,10 @@ if "Executive" in page:
     st.divider()
 
     # ── BEE EPI Score Card ──
-    st.subheader("🏅 BEE Energy Performance Index (EPI) — India Compliance")
+    bee_badge = ""
+    if selected_role_key == "sustainability":
+        bee_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: National BEE EPI</span>"
+    st.markdown(f"### 🏅 BEE Energy Performance Index (EPI) — India Compliance{bee_badge}", unsafe_allow_html=True)
     bee_col1, bee_col2, bee_col3, bee_col4 = st.columns(4)
 
     star_emoji = {5: "⭐⭐⭐⭐⭐", 4: "⭐⭐⭐⭐", 3: "⭐⭐⭐", 2: "⭐⭐", 1: "⭐"}
@@ -1029,7 +1115,10 @@ if "Executive" in page:
     st.divider()
 
     # ── Institutional Carbon Budget & NAPCC Net-Zero Tracker ──
-    st.subheader("📉 Institutional Carbon Budget & NAPCC Net-Zero Tracker")
+    cb_badge = ""
+    if selected_role_key == "sustainability":
+        cb_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: NAPCC Net-Zero Trajectory</span>"
+    st.markdown(f"### 📉 Institutional Carbon Budget & NAPCC Net-Zero Tracker{cb_badge}", unsafe_allow_html=True)
     st.caption("30-day cumulative carbon burn-down trajectory linked to NAPCC 20% ECBC baseline targets")
 
     # Progress bar for monthly carbon budget consumption
@@ -1267,11 +1356,18 @@ if "Executive" in page:
 
     # ── Step 9: Indian Tariff Optimization & Compliance Panel ──
     st.divider()
+    if selected_role_key == "administrator":
+        st.markdown("<span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Contract Demand & ToD Surcharges</span>", unsafe_allow_html=True)
     render_indian_tariff_panel(facility_meta, tel)
 
     # ── Step 8: Unified Recommendation Pipeline & Decarbonization Roadmap ──
     st.divider()
-    st.subheader("💡 Unified Recommendation Pipeline & Decarbonization Roadmap")
+    rec_badge = ""
+    if selected_role_key == "administrator":
+        rec_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Executive Action Approvals</span>"
+    elif selected_role_key == "operations":
+        rec_badge = " &nbsp; <span style='font-size:0.75rem; background:#d97706; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🔧 Operations Priority: Guard Constraints</span>"
+    st.markdown(f"### 💡 Unified Recommendation Pipeline & Decarbonization Roadmap{rec_badge}", unsafe_allow_html=True)
     st.caption("AI-synthesized, multi-source energy conservation recommendations strictly verified by the Service-Impact Guard and ranked by expected annual financial savings.")
 
     engine = RecommendationEngine(facility_meta)
@@ -1311,6 +1407,25 @@ if "Executive" in page:
 elif "Governance" in page:
     st.title("🏛️ Institutional Governance, Policy & Multi-Facility Benchmarking")
     st.caption("India-wide facility energy comparison, Bureau of Energy Efficiency (BEE) compliance, and state-level scaling impact.")
+
+    if selected_role_key == "sustainability":
+        st.markdown(
+            """
+            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>🌱 Sustainability View Focus:</b> Cross-facility BEE EPI benchmarks, ECBC statutory compliance, state-level decarbonization scaling, and empirical ML verification evidence.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif selected_role_key == "administrator":
+        st.markdown(
+            """
+            <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>👔 Administrator View Focus:</b> Institutional statutory compliance, multi-facility financial performance, cross-campus energy budgets, and state-level scaling financial returns.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     @st.cache_data(show_spinner="Computing multi-facility benchmarks…")
     def load_governance_benchmarks():
@@ -1511,7 +1626,12 @@ elif "Governance" in page:
     st.divider()
 
     # ── Section 3: ECBC & Institutional Compliance Checklist ────────────────
-    st.markdown("### 📋 ECBC & Institutional Energy Compliance Checklist")
+    comp_badge = ""
+    if selected_role_key == "administrator":
+        comp_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Compliance Scorecard</span>"
+    elif selected_role_key == "sustainability":
+        comp_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Mandate</span>"
+    st.markdown(f"### 📋 ECBC & Institutional Energy Compliance Checklist{comp_badge}", unsafe_allow_html=True)
     st.caption("Mandatory statutory standards under Energy Conservation Building Code (ECBC 2017) & Energy Conservation (Amendment) Act 2022.")
 
     with st.expander("🔎 Mandatory Compliance Audits & Facility Controls", expanded=True):
@@ -1610,7 +1730,10 @@ elif "Governance" in page:
 
         # ── Section 5: 🔬 Verification & Evidence (Evaluation Harness) ──────
         st.divider()
-        st.markdown("### 🔬 Verification & Evidence (The Proof Layer)")
+        ev_badge = ""
+        if selected_role_key == "sustainability":
+            ev_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: Model Proof Layer</span>"
+        st.markdown(f"### 🔬 Verification & Evidence (The Proof Layer){ev_badge}", unsafe_allow_html=True)
         st.caption(
             "Reproducible quantitative evaluation of Nivara's anomaly detection and load forecasting models "
             "against naive baselines and component ablations."
@@ -2691,6 +2814,16 @@ elif "Alerts" in page:
     st.title("🚨 AI Anomaly Alerts & NLP Complaint Correlation")
     st.caption("AI-detected anomalies correlated with real facility complaints submitted by occupants.")
 
+    if selected_role_key == "operations":
+        st.markdown(
+            """
+            <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>🔧 Operations View Focus:</b> Live IoT anomaly detection, root-cause diagnostics ("Why?"), technician work orders with active SLA countdowns, and Service-Impact Guard constraints.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     render_assumptions_expander([
         "anomaly.statistical.deviation_cutoff_kw",
         "anomaly.statistical.pct_deviation_cutoff",
@@ -2727,7 +2860,7 @@ elif "Alerts" in page:
     filtered_alerts = [a for a in alerts if a.severity.value in sev_filter]
 
     st.markdown(f"**{len(filtered_alerts)} alerts** (from {len(alerts)} total) matching filter.")
-    render_service_guard_demo_expander(facility_meta)
+    render_service_guard_demo_expander(facility_meta, expanded=(selected_role_key == "operations"))
     st.divider()
 
     col_alerts, col_stats = st.columns([3, 2])
@@ -3032,7 +3165,10 @@ elif "Alerts" in page:
 
     # ── Maintenance Work-Order & Fault Priority Queue (TASK-09) ────────────────
     st.divider()
-    st.subheader("🛠️ Maintenance Work-Order & Fault Priority Queue")
+    wo_badge = ""
+    if selected_role_key == "operations":
+        wo_badge = " &nbsp; <span style='font-size:0.75rem; background:#d97706; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🔧 Operations Priority: Live SLA Countdowns</span>"
+    st.markdown(f"### 🛠️ Maintenance Work-Order & Fault Priority Queue{wo_badge}", unsafe_allow_html=True)
     st.caption("Operational dispatch queue translating AI-detected telemetry anomalies into prioritized field work-orders.")
 
     # ── Step 11: Notification Gateway Status & Outbound Dispatch Controls ──────
@@ -3722,6 +3858,16 @@ elif "Microgrid" in page:
     st.title("🔋 Microgrid & Solar Dispatch Simulator")
     st.caption("Peak shaving via BESS (Battery Energy Storage System) + rooftop solar PV. Simulated dispatch strategy.")
 
+    if selected_role_key == "sustainability":
+        st.markdown(
+            """
+            <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>🌱 Sustainability View Focus:</b> Maximizing on-site rooftop solar PV self-consumption, green battery dispatch, and clean energy displacement.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     render_indian_tariff_panel(facility_meta, tel)
     st.divider()
 
@@ -3865,6 +4011,16 @@ elif "Billing" in page:
 
     st.title("💸 Automated Department Billing & Chargeback")
     st.caption("Sub-meter telemetry allocated to departments — no more flat area-based splits.")
+
+    if selected_role_key == "administrator":
+        st.markdown(
+            """
+            <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
+                <b>👔 Administrator View Focus:</b> Departmental cost center allocations, sub-meter chargeback auditing, and avoidable energy cost recovery.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     render_indian_tariff_panel(facility_meta, tel)
     st.divider()
@@ -4093,19 +4249,53 @@ elif "Assistant" in page:
     st.title("💬 AI Facility Assistant")
     st.caption("Powered by Gemini. Analyses real telemetry, anomalies, and complaints to answer your questions.")
 
+    if current_role:
+        st.markdown(
+            f"""
+            <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
+                <span style="font-size: 1.05rem; font-weight: 700; color: #f8fafc;">{current_role.icon} Active Persona: {current_role.name}</span>
+                <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 3px;">{current_role.description}</div>
+                <div style="color: #38bdf8; font-size: 0.78rem; margin-top: 4px;"><b>Scope & Tone:</b> {current_role.gemini_persona_prompt}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
     # API Key input
     api_key = st.text_input("Gemini API Key", type="password",
                              help="Get one at https://aistudio.google.com/app/apikey")
 
-    # Quick prompts
+    # Quick prompts adapted to persona
     st.markdown("**Quick Prompts:**")
     qp_cols = st.columns(4)
-    quick_prompts = [
-        "What are the most critical energy anomalies right now?",
-        "Which department is wasting the most energy?",
-        "How can we reduce peak demand tomorrow?",
-        "Summarise the last 24 hours of campus energy performance.",
-    ]
+    if selected_role_key == "administrator":
+        quick_prompts = [
+            "Summarize campus operating costs and peak tariff risk.",
+            "Which department has highest cost allocation variance?",
+            "What is total verified financial ROI in ledger?",
+            "Which high-payback energy actions need executive sign-off?",
+        ]
+    elif selected_role_key == "operations":
+        quick_prompts = [
+            "What are the most critical equipment anomalies right now?",
+            "Which active work orders are closest to SLA breach?",
+            "Explain root cause of latest HVAC anomaly ('Why?').",
+            "Show me recommendations blocked by the Service Guard.",
+        ]
+    elif selected_role_key == "sustainability":
+        quick_prompts = [
+            "What is our BEE Star Rating & ECBC compliance status?",
+            "How are we tracking against NAPCC 20% carbon budget?",
+            "Summarize cumulative verified Scope 2 GHG abatement.",
+            "What is solar PV utilization & BESS dispatch impact?",
+        ]
+    else:
+        quick_prompts = [
+            "What are the most critical energy anomalies right now?",
+            "Which department is wasting the most energy?",
+            "How can we reduce peak demand tomorrow?",
+            "Summarise the last 24 hours of campus energy performance.",
+        ]
     for i, qp in enumerate(quick_prompts):
         if qp_cols[i].button(qp[:30] + "…", key=f"qp_{i}", use_container_width=True):
             st.session_state["pending_prompt"] = qp
@@ -4123,7 +4313,7 @@ elif "Assistant" in page:
 
     # Pending Actions panel ABOVE the chat input
     st.subheader("📋 Pending Action Queue")
-    render_service_guard_demo_expander(facility_meta)
+    render_service_guard_demo_expander(facility_meta, expanded=(selected_role_key == "operations"))
     if st.session_state["action_log"]:
         action_df = pd.DataFrame(st.session_state["action_log"])
         cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_kwh", "status", "detected_at"]
@@ -4183,6 +4373,7 @@ elif "Assistant" in page:
                         events_df=events,
                         assets_df=assets,
                         complaints_df=complaints,
+                        active_role=selected_role_key,
                     )
                 st.markdown(response)
 
