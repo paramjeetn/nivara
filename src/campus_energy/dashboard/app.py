@@ -210,6 +210,12 @@ from campus_energy.decision import (
     WorkOrderItem,
 )
 from campus_energy.simulator.events import simulate_fault_resolution
+from campus_energy.notify import (
+    NotificationMessage,
+    NotificationResult,
+    NotificationRouter,
+    get_notification_router,
+)
 
 
 def get_or_create_savings_ledger(
@@ -694,6 +700,9 @@ with st.sidebar:
     protected_loads_list = getattr(facility_meta, "protected_loads", [])
     st.caption(f"🛡️ Protected Loads: **{len(protected_loads_list)} non-curtailable**")
     st.caption(f"📜 Compliance: **{', '.join(compliance_frameworks)}**")
+    notif_router = get_notification_router()
+    gw_status = notif_router.get_gateway_status()
+    st.caption(f"{gw_status['status_badge']}")
     st.divider()
 
     page = st.radio(
@@ -2884,6 +2893,22 @@ elif "Alerts" in page:
                     f"**Verification:** {expl['recommended_verification']}"
                 )
 
+                # Quick notification dispatch probe for this alert
+                btn_alert_notify_col1, _ = st.columns([3, 2])
+                with btn_alert_notify_col1:
+                    if st.button("🔔 Notify Operations Lead", key=f"btn_notify_alert_{alert.alert_id}"):
+                        a_res = notif_router.dispatch_from_alert(alert, recommendation=alert_rec)
+                        chan_txt = " & ".join([r.channel.title() for r in a_res if r.channel != "router"]) or "Telegram"
+                        mode_txt = "Live connected" if any(not r.dry_run for r in a_res) else "Dry-run logged"
+                        st.session_state["notif_dispatch_banner"] = {
+                            "text": f"📩 Dispatched alert to Operations via {chan_txt} ({mode_txt}) for {alert.asset_id}",
+                            "alert_id": alert.alert_id,
+                            "asset_id": alert.asset_id,
+                            "title": f"Alert [{alert.alert_id}]: {alert.anomaly_type.replace('_', ' ').title()} on {alert.asset_id}",
+                            "results": a_res,
+                        }
+                        st.rerun()
+
                 # Correlated complaints
                 if not complaints.empty:
                     related = complaints[
@@ -3009,6 +3034,74 @@ elif "Alerts" in page:
     st.divider()
     st.subheader("🛠️ Maintenance Work-Order & Fault Priority Queue")
     st.caption("Operational dispatch queue translating AI-detected telemetry anomalies into prioritized field work-orders.")
+
+    # ── Step 11: Notification Gateway Status & Outbound Dispatch Controls ──────
+    gw_status = notif_router.get_gateway_status()
+    gw_col1, gw_col2 = st.columns([3, 1])
+    with gw_col1:
+        st.markdown(
+            f"""
+            <div style="background:#0f172a; padding:10px 14px; border-radius:8px; border:1px solid #334155; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                <span style="font-weight:600; color:#38bdf8;">{gw_status['status_badge']}</span>
+                <span style="font-size:0.8rem; color:#94a3b8;">Suppression: {gw_status['suppression_window_minutes']}m • Channels: Telegram Bot, SMTP</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with gw_col2:
+        if st.button("🔔 Send Test Alert", key="btn_p5_send_test_alert"):
+            test_res = notif_router.dispatch(NotificationMessage(
+                recipient_role="operations",
+                severity="high",
+                title="Facility Operations Probe Alert",
+                asset_id="OPERATIONS-GW",
+                description="Manual notification test probe triggered from Nivara Alerts & Work Orders dashboard.",
+                impact_range="₹0 [Baseline Operational Check]",
+                service_guard_note="🟢 Service-Safe: Diagnostic Probe",
+            ))
+            chan_str = " & ".join([r.channel.title() for r in test_res if r.channel != "router"]) or "Telegram"
+            mode_str = "Live connected" if any(not r.dry_run for r in test_res) else "Dry-run logged"
+            st.session_state["notif_dispatch_banner"] = {
+                "text": f"📩 Dispatched alert to Operations via {chan_str} ({mode_str})",
+                "results": test_res,
+                "title": "Facility Operations Probe Alert",
+                "asset_id": "OPERATIONS-GW",
+            }
+            st.rerun()
+
+    # Outbound Notification Banner
+    if "notif_dispatch_banner" in st.session_state and st.session_state["notif_dispatch_banner"]:
+        b_info = st.session_state["notif_dispatch_banner"]
+        st.success(f"{b_info['text']}")
+        with st.expander("📬 Outbound Alert Payload Preview", expanded=False):
+            st.markdown(f"**Title:** {b_info.get('title')}")
+            st.markdown(f"**Target Asset:** `{b_info.get('asset_id')}`")
+            if "results" in b_info:
+                for r in b_info["results"]:
+                    r_mode = "Dry-Run Simulation" if r.dry_run else "Live Outbound"
+                    r_stat = "Delivered" if r.success else "Throttled/Failed"
+                    st.caption(f"• **{r.channel.title()}**: {r_stat} ({r_mode}) | ID/Error: `{r.message_id or r.error}`")
+
+    # Expandable Recent Notification Dispatches Table
+    recent_history = notif_router.get_history(limit=50)
+    with st.expander(f"📬 Recent Notification Dispatches ({len(recent_history)})", expanded=False):
+        if recent_history:
+            hist_rows = []
+            for h in recent_history:
+                hist_rows.append({
+                    "Timestamp": h["timestamp"].strftime("%Y-%m-%d %H:%M:%S") if hasattr(h["timestamp"], "strftime") else str(h["timestamp"]),
+                    "Title": h["title"],
+                    "Asset": h["asset_id"],
+                    "Severity": h["severity"].upper(),
+                    "Role": h["recipient_role"].upper(),
+                    "Work Order": h["work_order_id"] or "—",
+                    "Channels": ", ".join(h["channels"]),
+                    "Mode": "Dry-Run" if h["dry_run"] else "Live",
+                    "Success": "✅ Delivered" if h["success"] else "⚠️ Throttled",
+                })
+            st.dataframe(pd.DataFrame(hist_rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("No notifications dispatched yet in this session.")
 
     from campus_energy.analytics.workorders import create_work_orders, get_work_order_summary
 
@@ -3255,6 +3348,19 @@ elif "Alerts" in page:
                                 sla_hours=24,
                                 priority=sev,
                             )
+                            # Step 11: Dispatch notification to Operations lead
+                            dispatched_wo = p5_ledger.get_item(wid)
+                            if dispatched_wo:
+                                res_list = notif_router.dispatch_from_work_order(dispatched_wo)
+                                chan_label = " & ".join([r.channel.title() for r in res_list if r.channel != "router"]) or "Telegram"
+                                mode_label = "Live connected" if any(not r.dry_run for r in res_list) else "Dry-run logged"
+                                st.session_state["notif_dispatch_banner"] = {
+                                    "text": f"📩 Dispatched alert to Operations via {chan_label} ({mode_label}) for Work Order {wid}",
+                                    "wo_id": wid,
+                                    "asset_id": str(wo.get("asset_id", "")),
+                                    "title": f"Work Order {wid}: {wo.get('recommended_action', '')}",
+                                    "results": res_list,
+                                }
                             st.success(f"Work order {wid} dispatched!")
                             st.rerun()
 
