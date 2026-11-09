@@ -74,7 +74,9 @@ def _is_curtailment_action(rec: Recommendation, context: Optional[Dict[str, Any]
     # Action types that inherently curtail or shift load
     curtailment_types = {
         "peak_shaving",
+        "peak_demand_shaving",
         "schedule_shift",
+        "tod_load_shifting",
         "equipment_shutdown",
         "curtailment",
         "load_shedding",

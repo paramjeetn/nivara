@@ -514,3 +514,40 @@ assumptions:
     confidence: "high"
     applies_to: ["all"]
 
+  - key: "capital_cost.apfc_per_kvar"
+    value: 1200.0
+    unit: "INR/kVAR"
+    description: "Turnkey Automatic Power Factor Correction (APFC) capacitor bank and controller capex benchmark per kVAR"
+    source: "BEE Energy Audit Best Practice Manual / IS 13340 APFC Standards"
+    source_date: "2024-01-15"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "tariff.diesel_inr_per_l"
+    value: 95.0
+    unit: "INR/L"
+    description: "High-Speed Diesel (HSD) fuel procurement cost for standby DG sets in Odisha"
+    source: "Indian Oil Corporation Limited (IOCL) Retail Selling Price Odisha"
+    source_date: "2024-03-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "emissions.diesel_kg_per_l"
+    value: 2.68
+    unit: "kgCO2e/L"
+    description: "Direct combustion greenhouse gas emission factor for high-speed diesel generator"
+    source: "Central Electricity Authority (CEA) / IPCC Guidelines for National GHG Inventories"
+    source_date: "2023-12-01"
+    confidence: "high"
+    applies_to: ["all"]
+
+  - key: "dg.specific_fuel_consumption_l_per_kwh"
+    value: 0.30
+    unit: "L/kWh"
+    description: "Specific diesel fuel consumption rate for standby institutional diesel generator sets"
+    source: "BEE Guide Book 2 for Energy Managers and Auditors - Diesel Generating System"
+    source_date: "2023-05-10"
+    confidence: "high"
+    applies_to: ["all"]
+
+

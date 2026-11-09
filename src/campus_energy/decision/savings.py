@@ -32,6 +32,9 @@ BENCHMARK_KEY_MAP = {
     "vfd": "capital_cost.hvac_vfd_per_kw",
     "smart_sensor": "capital_cost.smart_sensor_per_unit",
     "sensor": "capital_cost.smart_sensor_per_unit",
+    "apfc": "capital_cost.apfc_per_kvar",
+    "apfc_retrofit": "capital_cost.apfc_per_kvar",
+    "capacitor_bank": "capital_cost.apfc_per_kvar",
 }
 
 

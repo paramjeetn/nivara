@@ -1,0 +1,23 @@
+tariff_id: "odisha_ht_commercial"
+name: "TPCODL HT-Commercial / Institutional (11kV/33kV)"
+energy_rate_inr_per_kwh: 8.50
+demand_charge_inr_per_kva_month: 250.0
+contract_demand_kva: 450.0
+billing_demand_percent: 80.0
+pf_penalty_threshold: 0.90
+pf_incentive_threshold: 0.95
+tod_bands:
+  peak:
+    start_hour: 18
+    end_hour: 22
+    multiplier: 1.20
+    rate_inr: 10.20
+  off_peak:
+    start_hour: 0
+    end_hour: 6
+    multiplier: 0.85
+    rate_inr: 7.225
+  normal:
+    multiplier: 1.00
+    rate_inr: 8.50
+disclaimer: "Illustrative tariff based on OERC FY2024-25 tariff order; replace with facility's actual power supply agreement."

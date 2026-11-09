@@ -21,6 +21,7 @@ import pandas as pd
 from campus_energy import assumptions
 from campus_energy.decision.guard import apply_service_guard, check_service_guard
 from campus_energy.decision.recommendation import GuardResult, Recommendation, SavingsBundle
+from campus_energy.decision.india_levers import generate_india_tariff_recommendations
 from campus_energy.decision.savings import (
     ASSUMPTION_KEY_ELECTRICITY_TARIFF,
     ASSUMPTION_KEY_GRID_EMISSIONS,
@@ -30,6 +31,7 @@ from campus_energy.decision.savings import (
     get_savings_assumption_keys,
 )
 from campus_energy.profiles import FacilityProfile
+from campus_energy.tariffs import IndianTariff, load_tariff
 
 logger = logging.getLogger(__name__)
 
@@ -722,6 +724,8 @@ def build_ranked_recommendations(
     context: Optional[Dict[str, Any]] = None,
     complaints: Optional[Union[List[Any], Dict[str, Any], pd.DataFrame]] = None,
     scenarios: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
+    telemetry_df: Optional[pd.DataFrame] = None,
+    tariff: Optional[IndianTariff] = None,
 ) -> Tuple[List[Recommendation], List[Recommendation]]:
     """Aggregate recommendations from all institutional streams, evaluate through Service-Impact Guard, and rank.
 
@@ -736,6 +740,8 @@ def build_ranked_recommendations(
         context: Optional real-time operational context (occupancy, temperature, sensor data).
         complaints: Optional complaint clustering results or raw complaints.
         scenarios: Optional list of (scenario_name, scenario_params) tuples.
+        telemetry_df: Optional facility telemetry DataFrame for India-specific tariff levers.
+        tariff: Optional IndianTariff schedule (defaults to OERC HT Commercial).
 
     Returns:
         tuple[list[Recommendation], list[Recommendation]]:
@@ -775,16 +781,42 @@ def build_ranked_recommendations(
         except Exception as e:
             logger.warning("Error generating recommendations from complaints: %s", e)
 
+    # 5. Synthesize from India-specific tariff levers (Peak kVA, PF/APFC, ToD load shifting, DG audit)
+    if telemetry_df is not None and not telemetry_df.empty:
+        try:
+            raw_recommendations.extend(
+                generate_india_tariff_recommendations(
+                    telemetry_df=telemetry_df,
+                    profile=facility_profile,
+                    tariff=tariff,
+                    context=context,
+                )
+            )
+        except Exception as e:
+            logger.warning("Error generating India tariff recommendations: %s", e)
+    elif facility_profile is not None:
+        try:
+            raw_recommendations.extend(
+                generate_india_tariff_recommendations(
+                    telemetry_df=None,
+                    profile=facility_profile,
+                    tariff=tariff,
+                    context=context,
+                )
+            )
+        except Exception as e:
+            logger.warning("Error generating DG audit recommendation: %s", e)
+
     # Ensure all recommendations have assumption_refs and is_estimate=True
     for rec in raw_recommendations:
         rec.is_estimate = True
         if not rec.assumption_refs:
             rec.assumption_refs = get_savings_assumption_keys()
 
-    # 5. Evaluate ALL recommendations through the Service-Impact Guard
+    # 6. Evaluate ALL recommendations through the Service-Impact Guard
     approved_list, blocked_list = apply_service_guard(raw_recommendations, facility_profile, context)
 
-    # 6. Rank approved actions strictly by expected INR savings descending
+    # 7. Rank approved actions strictly by expected INR savings descending
     approved_list.sort(key=lambda r: float(r.savings.inr.expected), reverse=True)
 
     # Explicitly enforce boundary: blocked items must NEVER appear in approved
@@ -826,6 +858,20 @@ class RecommendationEngine:
         """Synthesize operational maintenance recommendations from complaint clusters."""
         return generate_recommendations_from_complaints(clusters, self.profile)
 
+    def generate_from_india_levers(
+        self,
+        telemetry_df: Optional[pd.DataFrame] = None,
+        tariff: Optional[IndianTariff] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Recommendation]:
+        """Synthesize India-specific tariff optimization recommendations."""
+        return generate_india_tariff_recommendations(
+            telemetry_df=telemetry_df,
+            profile=self.profile,
+            tariff=tariff,
+            context=context,
+        )
+
     def build_ranked(
         self,
         alerts: Optional[Union[List[Any], pd.DataFrame]] = None,
@@ -833,6 +879,8 @@ class RecommendationEngine:
         context: Optional[Dict[str, Any]] = None,
         complaints: Optional[Union[List[Any], Dict[str, Any], pd.DataFrame]] = None,
         scenarios: Optional[List[Tuple[str, Dict[str, Any]]]] = None,
+        telemetry_df: Optional[pd.DataFrame] = None,
+        tariff: Optional[IndianTariff] = None,
     ) -> Tuple[List[Recommendation], List[Recommendation]]:
         """Synthesize, guard, and rank recommendations across all available streams."""
         return build_ranked_recommendations(
@@ -842,4 +890,6 @@ class RecommendationEngine:
             context=context,
             complaints=complaints,
             scenarios=scenarios,
+            telemetry_df=telemetry_df,
+            tariff=tariff,
         )

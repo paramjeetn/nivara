@@ -451,6 +451,146 @@ def render_recommendation_card(rec: Recommendation, container=None):
                         st.markdown(f"- **`{ref_key}`**: (Assumptions Registry key)")
 
 
+def render_indian_tariff_panel(facility_meta, telemetry_df=None, tariff=None):
+    """Render the Indian Tariff Optimization & Compliance panel."""
+    from campus_energy.tariffs import load_tariff
+    from campus_energy.decision.india_levers import (
+        calculate_telemetry_kva,
+        audit_diesel_generators,
+    )
+
+    t = tariff or load_tariff("odisha_ht_commercial")
+    cd = float(t.contract_demand_kva)
+    min_billing_demand = cd * (t.billing_demand_percent / 100.0)
+
+    st.subheader("🇮🇳 Indian Tariff Optimization & Compliance")
+    st.caption("Illustrative tariff (OERC HT Commercial), replace with the facility's own.")
+
+    if telemetry_df is not None and not telemetry_df.empty:
+        df_kva = calculate_telemetry_kva(telemetry_df)
+        if "reading_type" in df_kva.columns and df_kva["reading_type"].eq("meter").any():
+            meter_df = df_kva[df_kva["reading_type"] == "meter"]
+            ts_kva = meter_df.groupby("timestamp")["power_kva"].sum()
+            recorded_peak_kva = float(ts_kva.max()) if not ts_kva.empty else float(df_kva["power_kva"].max())
+        else:
+            ts_kva = df_kva.groupby("timestamp")["power_kva"].sum() if "timestamp" in df_kva.columns else df_kva["power_kva"]
+            recorded_peak_kva = float(ts_kva.max()) if not ts_kva.empty else float(df_kva["power_kva"].max())
+
+        recorded_peak_kva = max(0.0, recorded_peak_kva)
+        billing_demand_kva = t.calculate_billing_demand(recorded_peak_kva, cd)
+        demand_charge_inr = t.calculate_demand_charge(recorded_peak_kva, cd)
+
+        avg_pf = float(telemetry_df["power_factor"].dropna().mean()) if "power_factor" in telemetry_df.columns else 0.85
+        valid_pf = max(0.10, min(1.00, avg_pf))
+
+        duration_days = 30.0
+        if "timestamp" in telemetry_df.columns:
+            ts = pd.to_datetime(telemetry_df["timestamp"], errors="coerce").dropna()
+            if len(ts) >= 2:
+                duration_days = max(1.0, (ts.max() - ts.min()).total_seconds() / 86400.0)
+        total_kwh = float(telemetry_df["interval_energy_kwh"].sum()) if "interval_energy_kwh" in telemetry_df.columns else 50000.0
+        monthly_kwh = total_kwh * (30.0 / duration_days)
+        monthly_energy_charges = monthly_kwh * t.energy_rate_inr_per_kwh
+
+        pf_adj_inr, pf_status, pf_pct = t.calculate_pf_adjustment(valid_pf, monthly_energy_charges)
+
+        peak_rate = t.tod_bands.get("peak", t.tod_bands.get("normal")).rate_inr
+        off_peak_rate = t.tod_bands.get("off_peak", t.tod_bands.get("normal")).rate_inr
+        tod_diff = max(0.0, peak_rate - off_peak_rate)
+
+        dg_audit = audit_diesel_generators(facility_meta, telemetry_df, t)
+    else:
+        recorded_peak_kva = 460.0
+        billing_demand_kva = t.calculate_billing_demand(recorded_peak_kva, cd)
+        demand_charge_inr = t.calculate_demand_charge(recorded_peak_kva, cd)
+        valid_pf = 0.84
+        pf_adj_inr, pf_status, pf_pct = t.calculate_pf_adjustment(valid_pf, 100000.0)
+        tod_diff = 2.975
+        dg_audit = audit_diesel_generators(facility_meta, None, t)
+
+    # 4 Metric Cards
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        kva_delta = f"{recorded_peak_kva - cd:+.1f} kVA vs CD" if recorded_peak_kva > cd else f"CD: {cd:.0f} kVA"
+        st.metric(
+            "⚡ Recorded Peak kVA",
+            f"{recorded_peak_kva:,.1f} kVA",
+            kva_delta,
+            delta_color="inverse" if recorded_peak_kva > cd else "normal",
+        )
+    with c2:
+        st.metric(
+            "🔌 Billing Demand (80% CD)",
+            f"{billing_demand_kva:,.1f} kVA",
+            f"₹{demand_charge_inr:,.0f}/mo demand charge",
+        )
+    with c3:
+        pf_label = f"-{pf_pct:.1f}% Penalty" if pf_status == "penalty" else (f"+{pf_pct:.1f}% Incentive" if pf_status == "incentive" else "Compliant")
+        st.metric(
+            "📐 Average Power Factor",
+            f"{valid_pf:.3f}",
+            pf_label,
+            delta_color="inverse" if pf_status == "penalty" else "normal",
+        )
+    with c4:
+        st.metric(
+            "🌙 ToD Arbitrage Spread",
+            f"₹{tod_diff:.3f}/kWh",
+            "18:00–22:00 vs 00:00–06:00",
+        )
+
+    # Status / Warning Banners
+    if recorded_peak_kva > cd:
+        st.error(
+            f"⚠️ **Demand Exceeded Sanctioned Contract Demand:** Recorded maximum demand ({recorded_peak_kva:.1f} kVA) "
+            f"exceeds sanctioned contract demand ({cd:.1f} kVA). Surcharge penal demand rates apply under TPCODL/OERC regulations. "
+            f"BESS peak shaving or load interlocks recommended."
+        )
+    elif recorded_peak_kva >= min_billing_demand:
+        st.warning(
+            f"⚡ **Demand Charge Notice:** Recorded peak ({recorded_peak_kva:.1f} kVA) is billed at actual recorded demand. "
+            f"Reducing peak by {(recorded_peak_kva - min_billing_demand):.1f} kVA saves ₹{((recorded_peak_kva - min_billing_demand) * t.demand_charge_inr_per_kva_month):,.0f}/month."
+        )
+    else:
+        st.info(
+            f"ℹ️ **Minimum Billing Demand Rule:** Recorded peak ({recorded_peak_kva:.1f} kVA) is below 80% contract demand ({min_billing_demand:.1f} kVA). "
+            f"Utility bills on {min_billing_demand:.1f} kVA minimum."
+        )
+
+    if pf_status == "penalty":
+        st.warning(
+            f"⚠️ **Low Power Factor Surcharge Incurred:** Recorded average PF ({valid_pf:.3f}) falls below regulatory threshold ({t.pf_penalty_threshold:.2f}). "
+            f"A surcharge of {pf_pct:.1f}% (~₹{pf_adj_inr:,.0f}/mo) is levied on total energy charges. "
+            f"Installing an APFC capacitor bank to target 0.98 PF eliminates this penalty and earns a 1.5% incentive."
+        )
+    elif pf_status == "incentive":
+        st.success(
+            f"🌟 **High Power Factor Incentive Achieved:** Recorded average PF ({valid_pf:.3f}) exceeds 0.95, earning a {pf_pct:.1f}% monthly energy rebate (~₹{abs(pf_adj_inr):,.0f}/mo)."
+        )
+
+    if dg_audit.get("has_dg_assets"):
+        st.info(
+            f"⛽ **Diesel Generator (DG) Standby Audit ({', '.join(dg_audit['dg_assets_detected'])}):** "
+            f"DG power costs ₹{dg_audit['dg_generation_cost_inr_per_kwh']:.2f}/kWh ({dg_audit['cost_multiplier_vs_grid']}x grid power) "
+            f"with emissions of {dg_audit['direct_emissions_kg_per_l']} kg CO2/L. Restrict to emergency backup. "
+            f"*(Roadmap: Real-time ATS outage simulation & hybrid dispatch)*."
+        )
+
+    with st.expander("📋 View OERC HT Commercial Tariff Schedule & Thresholds"):
+        t_data = [
+            {"Parameter": "Tariff Schedule", "Value": t.name},
+            {"Parameter": "Base Energy Rate", "Value": f"₹{t.energy_rate_inr_per_kwh:.2f}/kWh"},
+            {"Parameter": "ToD Peak Band (18:00–22:00)", "Value": f"₹{t.tod_bands['peak'].rate_inr:.2f}/kWh (1.20x)"},
+            {"Parameter": "ToD Off-Peak Band (00:00–06:00)", "Value": f"₹{t.tod_bands['off_peak'].rate_inr:.3f}/kWh (0.85x)"},
+            {"Parameter": "Monthly Demand Charge", "Value": f"₹{t.demand_charge_inr_per_kva_month:.2f}/kVA/month"},
+            {"Parameter": "Sanctioned Contract Demand", "Value": f"{cd:.1f} kVA"},
+            {"Parameter": "Minimum Billing Demand", "Value": f"{t.billing_demand_percent:.0f}% of Contract Demand ({min_billing_demand:.1f} kVA)"},
+            {"Parameter": "Low PF Penalty Rule", "Value": "1.0% surcharge per 0.01 drop below 0.90 PF"},
+            {"Parameter": "High PF Incentive Rule", "Value": "0.5% rebate per 0.01 rise above 0.95 PF"},
+        ]
+        st.dataframe(pd.DataFrame(t_data), use_container_width=True, hide_index=True)
+
+
 @st.cache_data(show_spinner="Loading campus data…")
 def load_data(data_dir_str: str = "data/generated"):
     data_dir = Path(data_dir_str)
@@ -1052,6 +1192,10 @@ if "Executive" in page:
             mime="application/pdf",
         )
 
+    # ── Step 9: Indian Tariff Optimization & Compliance Panel ──
+    st.divider()
+    render_indian_tariff_panel(facility_meta, tel)
+
     # ── Step 8: Unified Recommendation Pipeline & Decarbonization Roadmap ──
     st.divider()
     st.subheader("💡 Unified Recommendation Pipeline & Decarbonization Roadmap")
@@ -1067,6 +1211,7 @@ if "Executive" in page:
         alerts=events if not events.empty else None,
         complaints=complaints if not complaints.empty else None,
         scenarios=p1_scenarios,
+        telemetry_df=tel,
     )
 
     t_app, t_blk = st.tabs([f"🟢 Approved Ranked Measures ({len(p1_approved)})", f"🛡️ Blocked by Guard ({len(p1_blocked)})"])
@@ -3239,6 +3384,9 @@ elif "Microgrid" in page:
     st.title("🔋 Microgrid & Solar Dispatch Simulator")
     st.caption("Peak shaving via BESS (Battery Energy Storage System) + rooftop solar PV. Simulated dispatch strategy.")
 
+    render_indian_tariff_panel(facility_meta, tel)
+    st.divider()
+
     # Sidebar controls
     with st.expander("⚙️ System Parameters", expanded=True):
         c1, c2, c3 = st.columns(3)
@@ -3379,6 +3527,9 @@ elif "Billing" in page:
 
     st.title("💸 Automated Department Billing & Chargeback")
     st.caption("Sub-meter telemetry allocated to departments — no more flat area-based splits.")
+
+    render_indian_tariff_panel(facility_meta, tel)
+    st.divider()
 
     with st.spinner("Computing department chargebacks…"):
         billing = calculate_billing(tel)

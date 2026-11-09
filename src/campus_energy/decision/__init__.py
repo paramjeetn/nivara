@@ -14,6 +14,23 @@ from campus_energy.decision.savings import (
     get_benchmark_capital_cost,
     get_savings_assumption_keys,
 )
+from campus_energy.decision.tariffs import (
+    DEFAULT_TARIFF_ID,
+    IndianTariff,
+    ToDBand,
+    list_available_tariffs,
+    load_tariff,
+)
+from campus_energy.decision.india_levers import (
+    audit_diesel_generators,
+    calculate_apfc_requirements,
+    calculate_telemetry_kva,
+    generate_dg_audit_recommendation,
+    generate_india_tariff_recommendations,
+    generate_peak_demand_recommendation,
+    generate_power_factor_recommendation,
+    generate_tod_load_shifting_recommendations,
+)
 from campus_energy.decision.engine import (
     RecommendationEngine,
     build_ranked_recommendations,
@@ -33,6 +50,19 @@ __all__ = [
     "calculate_savings",
     "get_benchmark_capital_cost",
     "get_savings_assumption_keys",
+    "DEFAULT_TARIFF_ID",
+    "IndianTariff",
+    "ToDBand",
+    "load_tariff",
+    "list_available_tariffs",
+    "audit_diesel_generators",
+    "calculate_apfc_requirements",
+    "calculate_telemetry_kva",
+    "generate_dg_audit_recommendation",
+    "generate_india_tariff_recommendations",
+    "generate_peak_demand_recommendation",
+    "generate_power_factor_recommendation",
+    "generate_tod_load_shifting_recommendations",
     "RecommendationEngine",
     "generate_recommendations_from_alerts",
     "generate_recommendations_from_forecast",
