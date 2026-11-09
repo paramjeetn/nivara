@@ -10,64 +10,75 @@ from campus_energy import assumptions
 GRID_EMISSION_FACTOR_KG_PER_KWH: float = assumptions.get_value("emissions.grid_factor")
 COST_PER_KWH_INR: float = assumptions.get_value("tariff.electricity_commercial")
 SOLAR_EMISSION_FACTOR_KG_PER_KWH: float = assumptions.get_value("emissions.solar_lifecycle_factor")
-NAPCC_REDUCTION_TARGET_PCT: float = assumptions.get_value("policy.napcc_reduction_target_pct")
+try:
+    NAPCC_REDUCTION_TARGET_PCT: float = assumptions.get_value("emissions.napcc_target_reduction_pct")
+except KeyError:
+    NAPCC_REDUCTION_TARGET_PCT: float = assumptions.get_value("policy.napcc_reduction_target_pct")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # BEE Energy Performance Index (EPI) benchmarks — kWh / m² / year
 # Source: Bureau of Energy Efficiency, Ministry of Power, Government of India
-# ECBC 2017 + BEE star-rating norms (loaded from assumptions registry)
+# ECBC 2017 + BEE star-rating norms (dynamically resolved from assumptions registry)
 # ─────────────────────────────────────────────────────────────────────────────
-BEE_EPI_BENCHMARKS = {
-    "university": {
-        "label": "Educational Building",
+def _normalize_facility_type(facility_type: str) -> str:
+    """Normalize facility type string to canonical assumptions key prefix."""
+    ft = (facility_type or "university").lower()
+    if "hosp" in ft or "health" in ft:
+        return "hospital"
+    elif "govt" in ft or "office" in ft:
+        return "govt_office"
+    elif "ind" in ft:
+        return "industrial"
+    return "university"
+
+
+def get_bee_benchmarks(facility_type: str = "university") -> dict:
+    """Resolve BEE EPI thresholds and ECBC baseline dynamically from assumptions registry."""
+    norm = _normalize_facility_type(facility_type)
+    label_map = {
+        "university": "Educational Building",
+        "hospital": "Healthcare Facility",
+        "govt_office": "Government Office",
+        "industrial": "Industrial Facility",
+    }
+    s5_max = float(assumptions.get_value(f"bee.epi.{norm}.five_star_max"))
+    s4_max = float(assumptions.get_value(f"bee.epi.{norm}.four_star_max"))
+    s3_max = float(assumptions.get_value(f"bee.epi.{norm}.three_star_max"))
+    s2_max = float(assumptions.get_value(f"bee.epi.{norm}.two_star_max"))
+    ecbc_base = float(assumptions.get_value(f"bee.epi.{norm}.ecbc_baseline"))
+
+    return {
+        "label": label_map.get(norm, "Commercial Facility"),
         "stars": {
-            5: (0, assumptions.get_value("bee.epi.university.five_star_max")),
-            4: (assumptions.get_value("bee.epi.university.five_star_max"), assumptions.get_value("bee.epi.university.four_star_max")),
-            3: (assumptions.get_value("bee.epi.university.four_star_max"), assumptions.get_value("bee.epi.university.three_star_max")),
-            2: (assumptions.get_value("bee.epi.university.three_star_max"), assumptions.get_value("bee.epi.university.two_star_max")),
-            1: (assumptions.get_value("bee.epi.university.two_star_max"), 9999),
+            5: (0.0, s5_max),
+            4: (s5_max, s4_max),
+            3: (s4_max, s3_max),
+            2: (s3_max, s2_max),
+            1: (s2_max, 9999.0),
         },
-        "ecbc_baseline": assumptions.get_value("bee.epi.university.ecbc_baseline"),
-    },
-    "hospital": {
-        "label": "Healthcare Facility",
-        "stars": {
-            5: (0, assumptions.get_value("bee.epi.hospital.five_star_max")),
-            4: (assumptions.get_value("bee.epi.hospital.five_star_max"), assumptions.get_value("bee.epi.hospital.four_star_max")),
-            3: (assumptions.get_value("bee.epi.hospital.four_star_max"), assumptions.get_value("bee.epi.hospital.three_star_max")),
-            2: (assumptions.get_value("bee.epi.hospital.three_star_max"), assumptions.get_value("bee.epi.hospital.two_star_max")),
-            1: (assumptions.get_value("bee.epi.hospital.two_star_max"), 9999),
-        },
-        "ecbc_baseline": assumptions.get_value("bee.epi.hospital.ecbc_baseline"),
-    },
-    "govt_office": {
-        "label": "Government Office",
-        "stars": {
-            5: (0, assumptions.get_value("bee.epi.govt_office.five_star_max")),
-            4: (assumptions.get_value("bee.epi.govt_office.five_star_max"), assumptions.get_value("bee.epi.govt_office.four_star_max")),
-            3: (assumptions.get_value("bee.epi.govt_office.four_star_max"), assumptions.get_value("bee.epi.govt_office.three_star_max")),
-            2: (assumptions.get_value("bee.epi.govt_office.three_star_max"), assumptions.get_value("bee.epi.govt_office.two_star_max")),
-            1: (assumptions.get_value("bee.epi.govt_office.two_star_max"), 9999),
-        },
-        "ecbc_baseline": assumptions.get_value("bee.epi.govt_office.ecbc_baseline"),
-    },
-    "industrial": {
-        "label": "Industrial Facility",
-        "stars": {
-            5: (0, assumptions.get_value("bee.epi.industrial.five_star_max")),
-            4: (assumptions.get_value("bee.epi.industrial.five_star_max"), assumptions.get_value("bee.epi.industrial.four_star_max")),
-            3: (assumptions.get_value("bee.epi.industrial.four_star_max"), assumptions.get_value("bee.epi.industrial.three_star_max")),
-            2: (assumptions.get_value("bee.epi.industrial.three_star_max"), assumptions.get_value("bee.epi.industrial.two_star_max")),
-            1: (assumptions.get_value("bee.epi.industrial.two_star_max"), 9999),
-        },
-        "ecbc_baseline": assumptions.get_value("bee.epi.industrial.ecbc_baseline"),
-    },
-}
+        "ecbc_baseline": ecbc_base,
+    }
+
+
+class _DynamicBEEBenchmarks(dict):
+    """Dynamic dictionary proxy that retrieves current thresholds from assumptions registry."""
+
+    def __getitem__(self, key: str) -> dict:
+        return get_bee_benchmarks(key)
+
+    def get(self, key: str, default: Any = None) -> dict:
+        try:
+            return get_bee_benchmarks(key)
+        except Exception:
+            return default if default is not None else get_bee_benchmarks("university")
+
+
+BEE_EPI_BENCHMARKS = _DynamicBEEBenchmarks()
 
 
 def _get_bee_star(epi_annual: float, facility_type: str) -> dict:
-    """Return BEE star rating and details for a given annual EPI."""
-    norms = BEE_EPI_BENCHMARKS.get(facility_type, BEE_EPI_BENCHMARKS["university"])
+    """Return BEE star rating and details for a given annual EPI resolved from assumptions."""
+    norms = get_bee_benchmarks(facility_type)
     stars = 1
     for star, (lo, hi) in norms["stars"].items():
         if lo <= epi_annual < hi:
@@ -75,7 +86,13 @@ def _get_bee_star(epi_annual: float, facility_type: str) -> dict:
             break
     ecbc_baseline = norms["ecbc_baseline"]
     vs_ecbc_pct = round(((epi_annual - ecbc_baseline) / ecbc_baseline) * 100, 1)
-    napcc_target = round(ecbc_baseline * (1 - NAPCC_REDUCTION_TARGET_PCT / 100), 1)
+
+    try:
+        napcc_reduction = float(assumptions.get_value("emissions.napcc_target_reduction_pct"))
+    except KeyError:
+        napcc_reduction = float(assumptions.get_value("policy.napcc_reduction_target_pct"))
+
+    napcc_target = round(ecbc_baseline * (1.0 - napcc_reduction / 100.0), 1)
     return {
         "stars": stars,
         "epi_annual_kwh_m2": round(epi_annual, 1),
@@ -92,6 +109,7 @@ def calculate_esg_metrics(
     events_df: pd.DataFrame,
     floor_area_m2: float = 10000.0,
     facility_type: str = "university",
+    water_df: pd.DataFrame | None = None,
 ) -> dict:
     """Compute campus-wide ESG metrics from telemetry and injected events.
 
@@ -212,6 +230,41 @@ def calculate_esg_metrics(
         },
     }
 
+    # Baseline vs Current Electricity
+    baseline_electricity_kwh = max(0.0, round(total_energy_kwh - wasted_kwh, 1))
+    current_electricity_kwh = round(total_energy_kwh, 1)
+
+    # Baseline vs Current Water
+    water_tariff = assumptions.get_value("water.tariff_inr_per_kl", default=25.0)
+    if water_df is not None and not water_df.empty:
+        from campus_energy.simulator.water import analyze_water_data
+        w_res = analyze_water_data(water_df)
+        w_kpis = w_res.get("kpis", {})
+        current_water_kl = float(w_kpis.get("total_water_kl", 0.0))
+        avoidable_water_kl = float(w_kpis.get("avoidable_loss_kl", 0.0))
+        baseline_water_kl = max(0.0, round(current_water_kl - avoidable_water_kl, 1))
+        water_cost_inr = float(w_kpis.get("water_cost_inr", current_water_kl * water_tariff))
+        avoidable_water_cost_inr = float(w_kpis.get("avoidable_loss_inr", avoidable_water_kl * water_tariff))
+    else:
+        current_water_kl = round(floor_area_m2 * 0.058, 1)
+        avoidable_water_kl = round(current_water_kl * 0.12, 1)
+        baseline_water_kl = round(current_water_kl - avoidable_water_kl, 1)
+        water_cost_inr = round(current_water_kl * water_tariff, 0)
+        avoidable_water_cost_inr = round(avoidable_water_kl * water_tariff, 0)
+
+    water_savings_range = {
+        "kl": {
+            "low": round(avoidable_water_kl * 0.80, 1),
+            "expected": round(avoidable_water_kl, 1),
+            "high": round(avoidable_water_kl * 1.25, 1),
+        },
+        "cost_inr": {
+            "low": round(avoidable_water_cost_inr * 0.80, 0),
+            "expected": round(avoidable_water_cost_inr, 0),
+            "high": round(avoidable_water_cost_inr * 1.25, 0),
+        },
+    }
+
     return {
         "kpis": {
             "total_energy_kwh": round(total_energy_kwh, 1),
@@ -231,6 +284,14 @@ def calculate_esg_metrics(
             "napcc_savings_carbon_tons": round(napcc_savings_carbon_tons, 2),
             "avoidable_savings_range": avoidable_savings_range,
             "napcc_savings_range": napcc_savings_range,
+            "baseline_electricity_kwh": baseline_electricity_kwh,
+            "current_electricity_kwh": current_electricity_kwh,
+            "baseline_water_kl": baseline_water_kl,
+            "current_water_kl": current_water_kl,
+            "avoidable_water_kl": avoidable_water_kl,
+            "water_cost_inr": water_cost_inr,
+            "avoidable_water_cost_inr": avoidable_water_cost_inr,
+            "water_savings_range": water_savings_range,
             "avoidable_cost_display": f"Expected: ₹{avoidable_cost_inr:,.0f} (Range: ₹{avoidable_cost_inr*0.8:,.0f} – ₹{avoidable_cost_inr*1.25:,.0f})",
             "napcc_savings_cost_display": f"Expected: ₹{napcc_savings_cost:,.0f} (Range: ₹{napcc_savings_cost*0.85:,.0f} – ₹{napcc_savings_cost*1.15:,.0f})",
             "disclaimer": "⚠️ Decision-support estimate, not an official measurement.",

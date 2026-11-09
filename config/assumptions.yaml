@@ -81,6 +81,15 @@ assumptions:
     confidence: "high"
     applies_to: ["all"]
 
+  - key: "emissions.napcc_target_reduction_pct"
+    value: 20.0
+    unit: "%"
+    description: "National Action Plan on Climate Change recommended energy reduction percentage from baseline for designated consumers"
+    source: "National Action Plan on Climate Change (NAPCC) / BEE PAT Scheme Directive"
+    source_date: "2020-01-15"
+    confidence: "high"
+    applies_to: ["all"]
+
   # ── Sustainability & Carbon Offsets ─────────────────────────────────────
   - key: "sustainability.tree_sequestration_kg_co2_yr"
     value: 21.0

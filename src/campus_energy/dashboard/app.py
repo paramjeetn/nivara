@@ -1558,25 +1558,71 @@ if "Executive" in page:
     p1_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
     p1_summary = p1_ledger.get_summary()
 
-    # ── Top KPI row ──
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("🔌 Total Energy", f"{kpis['total_energy_kwh']:,.0f} kWh")
-    cost_label = "💰 Total Cost 👔" if selected_role_key == "administrator" else "💰 Total Cost"
-    c2.metric(cost_label, f"₹{kpis['total_cost_inr']:,.0f}")
-    c3.metric("☁️ Carbon Emitted", f"{kpis['total_carbon_tons']:.1f} t CO₂")
-    c4.metric("♻️ Avoidable Waste", f"{kpis['wasted_kwh']:,.0f} kWh",
-              delta=f"-{kpis['waste_pct']}%", delta_color="inverse")
-    avoid_cost = p1_summary.cumulative_estimated_inr if p1_summary.cumulative_estimated_inr > 0 else kpis["avoidable_cost_inr"]
-    avoid_low = round(avoid_cost * 0.80, 0)
-    avoid_high = round(avoid_cost * 1.25, 0)
-    savings_label = "💡 Potential Savings 👔" if selected_role_key == "administrator" else "💡 Potential Savings"
-    c5.metric(
-        savings_label,
-        f"Expected: ₹{avoid_cost:,.0f}",
-        delta=f"Range: ₹{avoid_low:,.0f} – ₹{avoid_high:,.0f}",
+    # ── Unified Recommendation Pipeline (Service Guard Verified) ──
+    engine = RecommendationEngine(facility_meta)
+    p1_scenarios = [
+        ("led_upgrade", {"led_upgrade": True}),
+        ("solar_pv", {"solar_pv_kwp": 150.0}),
+        ("setpoint_adjustment", {"temp_offset": 1.0}),
+    ]
+    p1_approved, p1_blocked = engine.build_ranked(
+        alerts=events if not events.empty else None,
+        complaints=complaints if not complaints.empty else None,
+        scenarios=p1_scenarios,
+        telemetry_df=tel,
+    )
+
+    # Extract avoidance ranges directly from kpis (exact same formula as Audit PDF)
+    cost_rng = kpis.get("avoidable_savings_range", {}).get("cost_inr", {})
+    cost_low = float(cost_rng.get("low", round(kpis["avoidable_cost_inr"] * 0.80, 0)))
+    cost_exp = float(cost_rng.get("expected", kpis["avoidable_cost_inr"]))
+    cost_high = float(cost_rng.get("high", round(kpis["avoidable_cost_inr"] * 1.25, 0)))
+
+    carb_rng = kpis.get("avoidable_savings_range", {}).get("carbon_kg", {})
+    carb_low = float(carb_rng.get("low", round(kpis["avoidable_carbon_kg"] * 0.80, 1)))
+    carb_exp = float(carb_rng.get("expected", kpis["avoidable_carbon_kg"]))
+    carb_high = float(carb_rng.get("high", round(kpis["avoidable_carbon_kg"] * 1.25, 1)))
+
+    # ── Headline Executive Metrics Row (Consistent with Audit PDF) ──
+    h1, h2, h3, h4, h5, h6 = st.columns(6)
+    cost_label = "💰 Energy Cost 👔" if selected_role_key == "administrator" else "💰 Energy Cost"
+    h1.metric(
+        cost_label,
+        f"₹{kpis['total_cost_inr']:,.0f}",
+        delta=f"{kpis['total_energy_kwh']:,.0f} kWh billed",
         delta_color="off",
     )
-    st.caption("⚠️ Decision-support estimate, not an official measurement.")
+    h2.metric(
+        "💡 Avoided Cost Range",
+        f"₹{cost_exp:,.0f}",
+        delta=f"Range: ₹{cost_low:,.0f} – ₹{cost_high:,.0f}",
+        delta_color="off",
+    )
+    h3.metric(
+        "☁️ Carbon Abatement Range",
+        f"{carb_exp:,.0f} kgCO₂e",
+        delta=f"Range: {carb_low:,.0f} – {carb_high:,.0f} kg",
+        delta_color="off",
+    )
+    h4.metric(
+        "✅ Verified Savings",
+        f"₹{p1_summary.cumulative_verified_inr:,.0f}",
+        delta=f"{p1_summary.cumulative_verified_kwh:,.0f} kWh ({p1_summary.estimate_hit_rate_pct:.0f}% hit-rate)" if p1_summary.verified_count > 0 else "Pending Field Verification",
+        delta_color="normal" if p1_summary.verified_count > 0 else "off",
+    )
+    h5.metric(
+        "🏅 BEE Star & EPI",
+        f"{bee['epi_annual_kwh_m2']:.0f} kWh/m²/yr",
+        delta=f"{bee['stars']}/5 Stars ({'ECBC Compliant' if bee['compliant'] else 'Below Baseline'})",
+        delta_color="normal" if bee["compliant"] else "inverse",
+    )
+    h6.metric(
+        "🛡️ Blocked Measures",
+        f"{len(p1_blocked)} Blocked",
+        delta="Service Guard Enforced",
+        delta_color="normal" if len(p1_blocked) > 0 else "off",
+    )
+    st.caption("⚠️ Decision-support estimate, not an official measurement. All headline metrics synchronized with Executive Audit PDF.")
 
     # ── Headline Closed-Loop M&V Verification Metrics (Step 10) ──
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1923,13 +1969,17 @@ if "Executive" in page:
             floor_area_m2=floor_area_m2,
             kpis=kpis,
             bee_info=bee,
-            events_df=events.head(5) if not events.empty else None,
+            events_df=events.head(10) if not events.empty else None,
             ledger=p1_ledger,
+            recommendations=p1_approved,
+            blocked_recommendations=p1_blocked,
+            profile=facility_meta,
+            assumptions_registry=assumptions,
         )
         st.download_button(
-            "📥 Download Executive ESG & BEE Audit Report (PDF)",
+            "📥 Download Executive Audit PDF",
             data=pdf_data,
-            file_name=f"{facility_type}_esg_audit_report.pdf",
+            file_name=f"{facility_type}_executive_audit_report.pdf",
             mime="application/pdf",
         )
 
@@ -1948,19 +1998,6 @@ if "Executive" in page:
         rec_badge = " &nbsp; <span style='font-size:0.75rem; background:#d97706; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🔧 Operations Priority: Guard Constraints</span>"
     st.markdown(f"### 💡 Unified Recommendation Pipeline & Decarbonization Roadmap{rec_badge}", unsafe_allow_html=True)
     st.caption("AI-synthesized, multi-source energy conservation recommendations strictly verified by the Service-Impact Guard and ranked by expected annual financial savings.")
-
-    engine = RecommendationEngine(facility_meta)
-    p1_scenarios = [
-        ("led_upgrade", {"led_upgrade": True}),
-        ("solar_pv", {"solar_pv_kwp": 150.0}),
-        ("setpoint_adjustment", {"temp_offset": 1.0}),
-    ]
-    p1_approved, p1_blocked = engine.build_ranked(
-        alerts=events if not events.empty else None,
-        complaints=complaints if not complaints.empty else None,
-        scenarios=p1_scenarios,
-        telemetry_df=tel,
-    )
 
     t_app, t_blk = st.tabs([f"🟢 Approved Ranked Measures ({len(p1_approved)})", f"🛡️ Blocked by Guard ({len(p1_blocked)})"])
     with t_app:

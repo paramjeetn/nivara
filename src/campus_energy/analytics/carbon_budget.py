@@ -35,7 +35,10 @@ def calculate_carbon_budget(
     """
     # 1. Determine monthly budget
     grid_emission_factor: float = assumptions.get_value("emissions.grid_factor")
-    napcc_pct: float = assumptions.get_value("policy.napcc_reduction_target_pct")
+    try:
+        napcc_pct: float = assumptions.get_value("emissions.napcc_target_reduction_pct")
+    except KeyError:
+        napcc_pct: float = assumptions.get_value("policy.napcc_reduction_target_pct")
     ceiling_days: float = assumptions.get_value("budget.month_ceiling_days")
 
     if monthly_budget_tco2 is None:
