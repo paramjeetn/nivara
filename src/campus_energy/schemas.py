@@ -73,6 +73,8 @@ class EventType(str, Enum):
     CORRUPTED_READING = "corrupted_reading"
     DUPLICATE_READING = "duplicate_reading"
     TIMESTAMP_GAP = "timestamp_gap"
+    PIPE_LEAK_OVERNIGHT = "pipe_leak_overnight"
+    PF_DROP = "pf_drop"
 
 
 class Severity(str, Enum):
