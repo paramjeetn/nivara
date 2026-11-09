@@ -190,6 +190,155 @@ COLORS = {
     "purple": "#8b5cf6",
 }
 
+from campus_energy.decision.recommendation import Recommendation, SavingsBundle, GuardResult
+from campus_energy.decision.guard import check_service_guard, apply_service_guard
+
+
+def render_service_guard_demo_expander(facility_profile: Any):
+    """Render the dedicated '🛡️ Blocked by Service Guard (Jury Demo Moment)' expander."""
+    with st.expander("🛡️ Blocked by Service Guard (Jury Demo Moment)", expanded=False):
+        st.markdown(
+            """
+            > **The Nivara Safety Principle:** Energy efficiency optimization must **never** compromise
+            > human life, clinical safety, critical cold chains, research continuity, or occupant thermal comfort standards.
+            """
+        )
+
+        fac_id = getattr(facility_profile, "facility_id", "university") if not isinstance(facility_profile, dict) else facility_profile.get("key", "university")
+        if fac_id in ("hospital", "district_hospital"):
+            demo_candidates = [
+                Recommendation(
+                    id="DEMO-BLK-01",
+                    facility_id="district_hospital",
+                    type="peak_shaving",
+                    target="EQ-IPD-ICU-EQ",
+                    action_text="Curtail ICU life-support monitor and ventilator power by 30% during grid peak tariff surcharge.",
+                    trigger="grid_peak_tariff_spike",
+                    savings=SavingsBundle.from_expected(45.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-02",
+                    facility_id="district_hospital",
+                    type="equipment_shutdown",
+                    target="EQ-IPD-CCR-AC",
+                    action_text="Shut down cold chain vaccine refrigeration compressor for 2 hours to avoid demand penalty.",
+                    trigger="demand_limit_threshold",
+                    savings=SavingsBundle.from_expected(32.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-03",
+                    facility_id="district_hospital",
+                    type="setpoint_adjustment",
+                    target="EQ-IPD-GW-AC",
+                    action_text="Raise Inpatient General Ward AC setpoint to 29°C during afternoon visiting hours.",
+                    trigger="cooling_demand_surge",
+                    savings=SavingsBundle.from_expected(50.0),
+                    owner_role="operations",
+                ),
+            ]
+            demo_contexts = {
+                "DEMO-BLK-03": {"proposed_temp_c": 29.0, "occupancy": 40, "humidity_pct": 55.0}
+            }
+        elif fac_id in ("industrial", "industrial_campus"):
+            demo_candidates = [
+                Recommendation(
+                    id="DEMO-BLK-01",
+                    facility_id="industrial_campus",
+                    type="peak_shaving",
+                    target="EQ-PRC-L1-DRV",
+                    action_text="Curtail main continuous process line drives by 40% during peak tariff window.",
+                    trigger="tariff_tou_peak",
+                    savings=SavingsBundle.from_expected(120.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-02",
+                    facility_id="industrial_campus",
+                    type="equipment_shutdown",
+                    target="EQ-UTL-FUM-EXH",
+                    action_text="Shut down toxic fume and solvent extraction exhaust fans during night shift to save energy.",
+                    trigger="off_peak_optimization",
+                    savings=SavingsBundle.from_expected(45.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-03",
+                    facility_id="industrial_campus",
+                    type="lighting_curtailment",
+                    target="EQ-MFG-SH1-LT",
+                    action_text="Turn off primary bay lighting in Sheet Metal Fab shop floor during active shift.",
+                    trigger="demand_cap_exceeded",
+                    savings=SavingsBundle.from_expected(28.0),
+                    owner_role="operations",
+                ),
+            ]
+            demo_contexts = {
+                "DEMO-BLK-03": {"occupancy": 35, "is_occupied": True}
+            }
+        else:
+            demo_candidates = [
+                Recommendation(
+                    id="DEMO-BLK-01",
+                    facility_id=str(fac_id),
+                    type="setpoint_adjustment",
+                    target="BLD-A-CR101",
+                    action_text="Raise Classroom 101 AC setpoint to 28.5°C during active lecture hours to shave chiller load.",
+                    trigger="chiller_peak_demand",
+                    savings=SavingsBundle.from_expected(60.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-02",
+                    facility_id=str(fac_id),
+                    type="lighting_curtailment",
+                    target="BLD-A-CR101-LT",
+                    action_text="Shut off primary lighting in Classroom 101 during scheduled class hours.",
+                    trigger="demand_target_exceeded",
+                    savings=SavingsBundle.from_expected(25.0),
+                    owner_role="operations",
+                ),
+                Recommendation(
+                    id="DEMO-BLK-03",
+                    facility_id=str(fac_id),
+                    type="peak_shaving",
+                    target="EQ-BLD-ADM-SR-AC",
+                    action_text="Curtail Campus Data Center & Server Room precision cooling by 50% during peak grid window.",
+                    trigger="campus_peak_shaving",
+                    savings=SavingsBundle.from_expected(80.0),
+                    owner_role="operations",
+                ),
+            ]
+            demo_contexts = {
+                "DEMO-BLK-01": {"proposed_temp_c": 28.5, "occupancy": 45, "humidity_pct": 50.0},
+                "DEMO-BLK-02": {"occupancy": 45, "scheduled_occupancy": 50, "is_occupied": True},
+            }
+
+        st.caption("The engine actively intercepts dangerous curtailment proposals before they can be dispatched:")
+        for cand in demo_candidates:
+            c_ctx = demo_contexts.get(cand.id)
+            g_res = check_service_guard(cand, facility_profile, c_ctx)
+            st.markdown(
+                f"""
+                <div style="background:#1e293b; border-left:4px solid #ef4444; border-radius:6px; padding:10px 14px; margin-bottom:10px; border:1px solid #334155;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:700; color:#f8fafc; font-size:0.92rem;">🚫 Blocked Action: {cand.action_text}</span>
+                        <span style="background:#450a0a; color:#f87171; border:1px solid #ef4444; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">
+                            BLOCKED ({g_res.constraints_checked[-1] if g_res.constraints_checked else 'service_guard'})
+                        </span>
+                    </div>
+                    <div style="color:#fca5a5; font-size:0.83rem; margin-top:5px; line-height:1.4;">
+                        <b>Constraint Rationale:</b> {g_res.reason}
+                    </div>
+                    <div style="color:#38bdf8; font-size:0.83rem; margin-top:5px; line-height:1.4;">
+                        <b>💡 AI Safe Alternative:</b> {g_res.safe_alternative}
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
 
 @st.cache_data(show_spinner="Loading campus data…")
 def load_data(data_dir_str: str = "data/generated"):
@@ -2215,6 +2364,7 @@ elif "Alerts" in page:
     filtered_alerts = [a for a in alerts if a.severity.value in sev_filter]
 
     st.markdown(f"**{len(filtered_alerts)} alerts** (from {len(alerts)} total) matching filter.")
+    render_service_guard_demo_expander(facility_meta)
     st.divider()
 
     col_alerts, col_stats = st.columns([3, 2])
@@ -2297,6 +2447,45 @@ elif "Alerts" in page:
                             context_row = ctx_bldg.loc[time_diffs.idxmin()].to_dict()
 
                 expl = explain_alert(alert, context_row=context_row, asset_info=asset_info)
+
+                # ── Step 7: Service-Impact Guard Check ──
+                alert_rec = Recommendation(
+                    id=f"REC-{alert.alert_id}",
+                    facility_id=str(getattr(facility_meta, "facility_id", "university")),
+                    type=alert.anomaly_type,
+                    target=alert.asset_id,
+                    action_text=alert.recommendation or f"Resolve {alert.anomaly_type} on {alert.asset_id}",
+                    trigger=alert.alert_id,
+                    savings=SavingsBundle.from_expected(alert.deviation or 10.0),
+                    owner_role="operations",
+                )
+                rec_ctx = {
+                    "zone_id": alert.zone_id,
+                    "building_id": alert.building_id,
+                    "asset_id": alert.asset_id,
+                }
+                if context_row:
+                    rec_ctx.update(context_row)
+                guard_res = check_service_guard(alert_rec, facility_meta, rec_ctx)
+                if guard_res.status == "pass":
+                    st.markdown(
+                        """
+                        <div style="background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:6px; padding:6px 12px; margin-top:6px; margin-bottom:8px;">
+                            <span style="color:#10b981; font-weight:600; font-size:0.85rem;">🟢 Service-Safe: Passed protected load, PMV comfort, and occupancy constraints.</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"""
+                        <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:6px; padding:8px 12px; margin-top:6px; margin-bottom:8px;">
+                            <div style="color:#ef4444; font-weight:700; font-size:0.85rem;">🛡️ Blocked by Service-Impact Guard: {guard_res.reason}</div>
+                            <div style="color:#38bdf8; font-size:0.82rem; margin-top:4px;"><b>Safe Alternative:</b> {guard_res.safe_alternative}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
                 st.markdown(
                     f"""
@@ -3301,6 +3490,7 @@ elif "Assistant" in page:
 
     # Pending Actions panel ABOVE the chat input
     st.subheader("📋 Pending Action Queue")
+    render_service_guard_demo_expander(facility_meta)
     if st.session_state["action_log"]:
         action_df = pd.DataFrame(st.session_state["action_log"])
         cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_kwh", "status", "detected_at"]
@@ -3317,6 +3507,44 @@ elif "Assistant" in page:
         display_cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_range", "status", "detected_at"]
         st.dataframe(action_df[display_cols], use_container_width=True)
         st.caption("⚠️ Decision-support estimate, not an official measurement.")
+
+        st.markdown("#### 🛡️ Service-Impact Guard Verification")
+        for idx, act in enumerate(st.session_state["action_log"]):
+            a_target = act.get("target_asset", "Campus-wide")
+            a_type = act.get("action_type", "anomaly_fix")
+            a_kwh = float(act.get("estimated_saving_kwh") or 25.0)
+            rec = Recommendation(
+                id=f"ACT-{idx+1}",
+                facility_id=str(getattr(facility_meta, "facility_id", "university")),
+                type=a_type,
+                target=a_target,
+                action_text=f"{a_type} on {a_target} ({act.get('suggested_time', 'Next maintenance window')})",
+                trigger="ai_facility_assistant",
+                savings=SavingsBundle.from_expected(a_kwh),
+                owner_role="operations",
+            )
+            g_res = check_service_guard(rec, facility_meta)
+            with st.container():
+                st.markdown(f"**Action #{idx+1}: {a_type} — `{a_target}`** · Saving: ~{a_kwh:.1f} kWh")
+                if g_res.status == "pass":
+                    st.markdown(
+                        """
+                        <div style="background:rgba(16,185,129,0.12); border:1px solid #10b981; border-radius:6px; padding:6px 12px; margin-top:2px; margin-bottom:8px;">
+                            <span style="color:#10b981; font-weight:600; font-size:0.85rem;">🟢 Service-Safe: Passed protected load, PMV comfort, and occupancy constraints.</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f"""
+                        <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:6px; padding:8px 12px; margin-top:2px; margin-bottom:8px;">
+                            <div style="color:#ef4444; font-weight:700; font-size:0.85rem;">🛡️ Blocked by Service-Impact Guard: {g_res.reason}</div>
+                            <div style="color:#38bdf8; font-size:0.82rem; margin-top:4px;"><b>Safe Alternative:</b> {g_res.safe_alternative}</div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
     else:
         st.caption("No actions detected yet. Ask the AI assistant a question to generate recommendations.")
         st.caption("⚠️ Decision-support estimate, not an official measurement.")

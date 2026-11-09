@@ -123,6 +123,35 @@ def calculate_pmv_ppd(
     }
 
 
+def compute_pmv(
+    temp_c: float,
+    humidity_pct: float = 50.0,
+    air_velocity_mps: float = 0.15,
+    metabolic_rate: float = 1.1,
+    clothing_clo: float = 0.6,
+) -> float:
+    """Compute Predicted Mean Vote (PMV) using ASHRAE 55 / ISO 7730 Fanger model.
+
+    Args:
+        temp_c: Dry bulb temperature in Celsius.
+        humidity_pct: Relative humidity (0 - 100%, default 50.0%).
+        air_velocity_mps: Indoor air speed in m/s (default 0.15 m/s).
+        metabolic_rate: Metabolic rate in met (default 1.1 for sedentary).
+        clothing_clo: Clothing insulation in clo (default 0.6 for light indoor attire).
+
+    Returns:
+        Predicted Mean Vote float clipped to [-3.0, +3.0].
+    """
+    res = calculate_pmv_ppd(
+        temp_c=temp_c,
+        humidity_pct=humidity_pct,
+        air_velocity_mps=air_velocity_mps,
+        metabolic_rate=metabolic_rate,
+        clothing_clo=clothing_clo,
+    )
+    return float(res["pmv"])
+
+
 def calculate_discomfort_index(temp_c: float, humidity_pct: float) -> Dict[str, Any]:
     """Calculate Thom's Discomfort Index (DI).
 
