@@ -15,6 +15,11 @@ from campus_energy.adapters.csv_upload import (
     normalize_timezones,
     process_uploaded_csv,
 )
+from campus_energy.adapters.public_dataset import (
+    BDG2Adapter,
+    BDG2_METADATA,
+    load_bdg2_benchmark,
+)
 from campus_energy.schemas import DataQualityReport
 
 __all__ = [
@@ -26,4 +31,7 @@ __all__ = [
     "detect_unit_conversions",
     "normalize_timezones",
     "process_uploaded_csv",
+    "BDG2Adapter",
+    "BDG2_METADATA",
+    "load_bdg2_benchmark",
 ]

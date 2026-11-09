@@ -10,6 +10,7 @@ build/
 venv/
 .venv/
 data/*/*.csv
+!data/public_benchmarks/*.csv
 data/*/*.json
 data/university
 data/*.db
