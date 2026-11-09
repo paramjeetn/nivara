@@ -134,20 +134,18 @@ def calculate_sla_status(severity: str, hours_unresolved: float) -> tuple[str, s
     return sla_target, sla_status
 
 
-def estimate_energy_waste(
+def estimate_energy_waste_range(
     rated_power_kw: float | None,
     severity: str,
     event_type: str | None = None,
-) -> tuple[float, float]:
-    """Estimate daily waste in kWh and INR using assumptions registry tariff."""
+) -> dict[str, dict[str, float]]:
+    """Estimate daily waste ranges {low, expected, high} in kWh and INR."""
     sev_clean = str(severity).lower().strip()
 
     if rated_power_kw is not None and not pd.isna(rated_power_kw) and float(rated_power_kw) > 0:
         power = float(rated_power_kw)
-        # Factor representing typical daily excess run-hours (8 - 12 hrs)
         est_kwh = power * 10.0
     else:
-        # Sensible defaults by severity
         defaults = {
             "critical": 120.0,
             "high": 80.0,
@@ -159,7 +157,29 @@ def estimate_energy_waste(
     est_kwh = round(max(15.0, est_kwh), 1)
     cost_per_kwh = assumptions.get_value("tariff.electricity_commercial")
     est_inr = round(est_kwh * cost_per_kwh, 2)
-    return est_kwh, est_inr
+
+    return {
+        "kwh": {
+            "low": round(est_kwh * 0.80, 1),
+            "expected": round(est_kwh, 1),
+            "high": round(est_kwh * 1.25, 1),
+        },
+        "inr": {
+            "low": round(est_inr * 0.80, 2),
+            "expected": round(est_inr, 2),
+            "high": round(est_inr * 1.25, 2),
+        },
+    }
+
+
+def estimate_energy_waste(
+    rated_power_kw: float | None,
+    severity: str,
+    event_type: str | None = None,
+) -> tuple[float, float]:
+    """Estimate daily waste in kWh and INR using assumptions registry tariff."""
+    ranges = estimate_energy_waste_range(rated_power_kw, severity, event_type)
+    return ranges["kwh"]["expected"], ranges["inr"]["expected"]
 
 
 def calculate_priority_score(
@@ -323,6 +343,9 @@ def create_work_orders(
 
 def get_work_order_summary(wo_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute executive and operational summary metrics for the work order queue."""
+    empty_kwh_range = {"low": 0.0, "expected": 0.0, "high": 0.0}
+    empty_inr_range = {"low": 0.0, "expected": 0.0, "high": 0.0}
+
     if wo_df is None or wo_df.empty:
         return {
             "total_count": 0,
@@ -330,10 +353,14 @@ def get_work_order_summary(wo_df: pd.DataFrame) -> Dict[str, Any]:
             "critical_count": 0,
             "daily_waste_kwh": 0.0,
             "daily_waste_inr": 0.0,
+            "daily_waste_kwh_range": empty_kwh_range,
+            "daily_waste_inr_range": empty_inr_range,
             "monthly_recovery_inr": 0.0,
+            "monthly_recovery_inr_range": empty_inr_range,
             "top_priority_asset": "None",
             "top_priority_score": 0.0,
             "top_wo_id": "N/A",
+            "disclaimer": "⚠️ Decision-support estimate, not an official measurement.",
         }
 
     active = wo_df[wo_df["status"] != "Resolved"]
@@ -341,6 +368,22 @@ def get_work_order_summary(wo_df: pd.DataFrame) -> Dict[str, Any]:
     daily_kwh = float(active["est_waste_kwh_day"].sum())
     daily_inr = float(active["est_waste_inr_day"].sum())
     monthly_inr = round(daily_inr * 30.0, 2)
+
+    daily_waste_kwh_range = {
+        "low": round(daily_kwh * 0.80, 1),
+        "expected": round(daily_kwh, 1),
+        "high": round(daily_kwh * 1.25, 1),
+    }
+    daily_waste_inr_range = {
+        "low": round(daily_inr * 0.80, 2),
+        "expected": round(daily_inr, 2),
+        "high": round(daily_inr * 1.25, 2),
+    }
+    monthly_recovery_inr_range = {
+        "low": round(monthly_inr * 0.80, 2),
+        "expected": round(monthly_inr, 2),
+        "high": round(monthly_inr * 1.25, 2),
+    }
 
     top_asset = "None"
     top_score = 0.0
@@ -357,8 +400,12 @@ def get_work_order_summary(wo_df: pd.DataFrame) -> Dict[str, Any]:
         "critical_count": len(critical),
         "daily_waste_kwh": round(daily_kwh, 1),
         "daily_waste_inr": round(daily_inr, 2),
+        "daily_waste_kwh_range": daily_waste_kwh_range,
+        "daily_waste_inr_range": daily_waste_inr_range,
         "monthly_recovery_inr": monthly_inr,
+        "monthly_recovery_inr_range": monthly_recovery_inr_range,
         "top_priority_asset": top_asset,
         "top_priority_score": top_score,
         "top_wo_id": top_wo,
+        "disclaimer": "⚠️ Decision-support estimate, not an official measurement.",
     }

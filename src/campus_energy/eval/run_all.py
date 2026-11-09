@@ -216,9 +216,10 @@ def generate_markdown_report(
         wk_str = f"{r['Weekday MAPE (%)']:.2f}%" if r['Weekday MAPE (%)'] is not None else "N/A"
         we_str = f"{r['Weekend MAPE (%)']:.2f}%" if r['Weekend MAPE (%)'] is not None else "N/A"
         hol_str = f"{r['Holiday MAPE (%)']}" if isinstance(r['Holiday MAPE (%)'], str) else f"{r['Holiday MAPE (%)']:.2f}%"
+        cov_str = str(r.get("80% Interval Coverage (%)") or r.get("Interval Coverage (%)") or "N/A")
         fc_rows.append(
             f"| **{r['Model']}** | **{r['Overall MAPE (%)']:.2f}%** | {r['Overall MAE (kW)']:.2f} kW | "
-            f"{r['Overall RMSE (kW)']:.2f} kW | {wk_str} | {we_str} | {hol_str} |"
+            f"{r['Overall RMSE (kW)']:.2f} kW | **{cov_str}** | {wk_str} | {we_str} | {hol_str} |"
         )
     fc_table_md = "\n".join(fc_rows)
 
@@ -281,8 +282,8 @@ By pitting Nivara's physics-informed layered engine and ML models against standa
 - **Zero Future Leakage:** Models are fit strictly on historical points prior to the split timestamp (`{forecast_eval["split_timestamp"]}`).
 
 ### 3.2 Performance Comparison Table
-| Forecasting Model | Overall MAPE | Overall MAE | Overall RMSE | Weekday MAPE | Weekend MAPE | Holiday MAPE |
-|---|---|---|---|---|---|---|
+| Forecasting Model | Overall MAPE | Overall MAE | Overall RMSE | 80% CI Coverage | Weekday MAPE | Weekend MAPE | Holiday MAPE |
+|---|---|---|---|---|---|---|---|
 {fc_table_md}
 
 ---

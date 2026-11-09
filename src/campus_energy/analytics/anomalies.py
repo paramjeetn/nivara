@@ -18,6 +18,131 @@ from campus_energy.schemas import Alert, Severity, AlertStatus
 from campus_energy.analytics.baseline import ExpectedConsumptionModel
 
 
+def calculate_confidence_score(
+    detector_type: str,
+    has_layer_agreement: bool = False,
+    deviation: float | None = None,
+    baseline_power: float | None = None,
+    rated_power: float | None = None,
+) -> float:
+    """Formal confidence scoring formulation for anomaly alerts.
+
+    Formula:
+        confidence = min(1.0, max(0.1, base_confidence + layer_agreement_bonus + residual_magnitude_score))
+
+    Components:
+        1. base_confidence: Calibrated prior confidence based on detector physics/methodology:
+           - Physical rule detector (unoccupied, pump_dry_run, sensor_dropout) = 0.85
+           - Statistical baseline model (Ridge regression expected load) = 0.65
+           - Machine Learning (Isolation Forest multivariate) = 0.50
+        2. layer_agreement_bonus: +0.15 if multiple distinct detector layers flagged an anomaly
+           on the same asset within an overlapping time window; 0.0 otherwise.
+        3. residual_magnitude_score: Scaled by deviation magnitude relative to baseline/rated power:
+           relative_dev = deviation / max(baseline_power or rated_power or 10.0, 0.1)
+           residual_magnitude_score = min(0.15, max(0.0, relative_dev * 0.08))
+
+    Parameters:
+        detector_type: 'rule', 'statistical', or 'isolation_forest' / 'ml'.
+        has_layer_agreement: True if >=2 layers independently confirmed anomaly.
+        deviation: Magnitude of power deviation in kW (|actual - expected|).
+        baseline_power: Expected or model baseline power in kW.
+        rated_power: Equipment nameplate rated power in kW.
+
+    Returns:
+        Confidence score strictly bounded within [0.10, 1.00], rounded to 2 decimal places.
+    """
+    det_lower = str(detector_type or "").lower().strip()
+    if any(k in det_lower for k in ["rule", "unoccupied", "pump_dry_run", "pump_no_flow", "sensor_dropout", "physical"]):
+        base_confidence = 0.85
+    elif any(k in det_lower for k in ["statistical", "high_consumption", "ridge"]):
+        base_confidence = 0.65
+    elif any(k in det_lower for k in ["isolation_forest", "ml", "multivariate"]):
+        base_confidence = 0.50
+    else:
+        base_confidence = 0.60
+
+    layer_agreement_bonus = 0.15 if has_layer_agreement else 0.0
+
+    residual_magnitude_score = 0.0
+    if deviation is not None and deviation > 0:
+        ref_kw = (
+            float(baseline_power)
+            if baseline_power is not None and float(baseline_power) > 0.1
+            else (float(rated_power) if rated_power is not None and float(rated_power) > 0.1 else 10.0)
+        )
+        rel_dev = deviation / max(ref_kw, 0.1)
+        residual_magnitude_score = min(0.15, max(0.0, rel_dev * 0.08))
+
+    raw_conf = base_confidence + layer_agreement_bonus + residual_magnitude_score
+    return round(float(np.clip(raw_conf, 0.10, 1.00)), 2)
+
+
+def determine_alert_severity(
+    anomaly_type: str,
+    deviation: float | None = None,
+    crit_cutoff_kw: float | None = None,
+    rated_power_kw: float | None = None,
+    asset_type: str | None = None,
+) -> Severity:
+    """Implement cost- and operational impact-based severity grading.
+
+    Grading Criteria:
+    - Critical: deviation >= critical threshold (from assumptions registry for statistical high consumption)
+                OR immediate safety/operational impact.
+    - High: large excess kW or after-hours running of high-draw HVAC/pumps.
+    - Medium: moderate excess power or prolonged lighting left on.
+    - Low: minor sensor jitter, low-draw deviation, or sensor dropout/comm failure.
+    """
+    if crit_cutoff_kw is None:
+        try:
+            crit_cutoff_kw = float(assumptions.get_value("anomaly.statistical.critical_deviation_kw"))
+        except Exception:
+            crit_cutoff_kw = 50.0
+
+    anom = str(anomaly_type or "").lower().strip()
+    atype = str(asset_type or "").lower().strip()
+    dev = float(deviation) if deviation is not None and not pd.isna(deviation) else 0.0
+
+    # Low severity: minor sensor jitter / dropout / comm failure
+    if anom in ("sensor_dropout", "duplicate_reading", "stale_sensor", "comm_failure"):
+        return Severity.LOW
+
+    # High severity: pump dry-run or after-hours running of high-draw HVAC
+    if anom in ("pump_no_flow", "pump_dry_run"):
+        return Severity.HIGH
+
+    if anom in ("unoccupied_operation", "hvac_left_on"):
+        if atype == "lighting" or anom == "lights_left_on":
+            return Severity.MEDIUM
+        return Severity.HIGH
+
+    if anom in ("lights_left_on", "occupancy_mismatch"):
+        return Severity.MEDIUM
+
+    # Statistical / high_consumption:
+    # Critical if deviation >= critical threshold (from assumptions)
+    if anom in ("high_consumption", "power_spike", "statistical"):
+        if dev >= crit_cutoff_kw and crit_cutoff_kw > 0:
+            return Severity.CRITICAL
+        elif dev >= (crit_cutoff_kw * 0.5):
+            return Severity.HIGH
+        return Severity.MEDIUM
+
+    if anom in ("ml_multivariate_anomaly", "isolation_forest"):
+        if dev >= crit_cutoff_kw and crit_cutoff_kw > 0:
+            return Severity.CRITICAL
+        return Severity.HIGH
+
+    # Fallback based on dev
+    if dev >= crit_cutoff_kw and crit_cutoff_kw > 0:
+        return Severity.CRITICAL
+    elif dev >= 10.0:
+        return Severity.HIGH
+    elif dev >= 5.0:
+        return Severity.MEDIUM
+    return Severity.LOW
+
+
 def _make_alert(
     asset_id: str,
     building_id: str,
@@ -33,6 +158,16 @@ def _make_alert(
     deviation: float = None,
     confidence: float = None,
 ) -> Alert:
+    # Ensure confidence is calibrated and bounded
+    if confidence is None:
+        confidence = calculate_confidence_score(
+            detector_type=anomaly_type,
+            deviation=deviation,
+            baseline_power=expected_value,
+        )
+    else:
+        confidence = round(float(np.clip(confidence, 0.10, 1.00)), 2)
+
     return Alert(
         alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
         detected_at=detected_at,
@@ -98,6 +233,7 @@ def detect_anomalies(
             'sensor_dropout', 'isolation_forest'. If None, all layers run.
     """
     alerts: list[Alert] = []
+    candidates: list[dict] = []
     active_layers = set(enabled_layers) if enabled_layers is not None else ALL_LAYERS
 
     min_time = pd.to_datetime(features_df["timestamp"].min())
@@ -170,26 +306,25 @@ def detect_anomalies(
 
             for _, group in asset_df[asset_df["is_dev"] == 1].groupby("dev_event"):
                 if len(group) >= 6:  # ≥ 30 min sustained
-                    dev_mean = group["deviation"].mean()
-                    exp_mean = group["expected_power_kw"].mean()
-                    confidence = min(0.95, 0.5 + len(group) / 200)
-                    alerts.append(
-                        _make_alert(
-                            asset_id=asset_id,
-                            building_id=building_id,
-                            zone_id=zone_id,
-                            anomaly_type="high_consumption",
-                            severity=Severity.CRITICAL if dev_mean > crit_cutoff else Severity.MEDIUM,
-                            evidence=f"Power exceeded baseline by {dev_mean:.2f} kW for {len(group)*5} min.",
-                            recommendation="Inspect equipment for efficiency degradation or unintended operation.",
-                            detected_at=group["timestamp"].max(),
-                            event_start=group["timestamp"].min(),
-                            actual_value=group["power_kw"].mean(),
-                            expected_value=exp_mean,
-                            deviation=dev_mean,
-                            confidence=confidence,
-                        )
-                    )
+                    dev_mean = float(group["deviation"].mean())
+                    exp_mean = float(group["expected_power_kw"].mean())
+                    candidates.append({
+                        "asset_id": asset_id,
+                        "building_id": building_id,
+                        "zone_id": zone_id,
+                        "anomaly_type": "high_consumption",
+                        "detector_type": "statistical",
+                        "layer_name": "statistical",
+                        "detected_at": group["timestamp"].max(),
+                        "event_start": group["timestamp"].min(),
+                        "actual_value": float(group["power_kw"].mean()),
+                        "expected_value": exp_mean,
+                        "deviation": dev_mean,
+                        "rated_power_kw": asset_info.get("rated_power_kw"),
+                        "asset_type": asset_info.get("asset_type", "meter"),
+                        "evidence": f"Power exceeded baseline by {dev_mean:.2f} kW for {len(group)*5} min.",
+                        "recommendation": "Inspect equipment for efficiency degradation or unintended operation.",
+                    })
 
         # ------------------------------------------------------------------ #
         # Layer 2 — Rule: Equipment ON while zone is unoccupied              #
@@ -208,22 +343,24 @@ def detect_anomalies(
 
                 for _, group in asset_df[asset_df["is_unocc"] == 1].groupby("unocc_event"):
                     if len(group) >= 6:
-                        alerts.append(
-                            _make_alert(
-                                asset_id=asset_id,
-                                building_id=building_id,
-                                zone_id=zone_id,
-                                anomaly_type="unoccupied_operation",
-                                severity=Severity.MEDIUM if asset_type == "lighting" else Severity.HIGH,
-                                evidence=f"{asset_type.upper()} ran at {group['power_kw'].mean():.2f} kW with zero occupancy for {len(group)*5} min.",
-                                recommendation="Enforce auto-off policy via BMS schedule.",
-                                detected_at=group["timestamp"].max(),
-                                event_start=group["timestamp"].min(),
-                                actual_value=group["power_kw"].mean(),
-                                expected_value=0.0,
-                                confidence=0.9,
-                            )
-                        )
+                        act_kw = float(group["power_kw"].mean())
+                        candidates.append({
+                            "asset_id": asset_id,
+                            "building_id": building_id,
+                            "zone_id": zone_id,
+                            "anomaly_type": "unoccupied_operation",
+                            "detector_type": "rule",
+                            "layer_name": "unoccupied",
+                            "detected_at": group["timestamp"].max(),
+                            "event_start": group["timestamp"].min(),
+                            "actual_value": act_kw,
+                            "expected_value": 0.0,
+                            "deviation": act_kw,
+                            "rated_power_kw": rated_kw,
+                            "asset_type": asset_type,
+                            "evidence": f"{asset_type.upper()} ran at {act_kw:.2f} kW with zero occupancy for {len(group)*5} min.",
+                            "recommendation": "Enforce auto-off policy via BMS schedule.",
+                        })
 
         # ------------------------------------------------------------------ #
         # Layer 3 — Rule: Pump running with no flow                          #
@@ -241,22 +378,24 @@ def detect_anomalies(
 
                 for _, group in asset_df[asset_df["is_noflow"] == 1].groupby("noflow_event"):
                     if len(group) >= 3:
-                        alerts.append(
-                            _make_alert(
-                                asset_id=asset_id,
-                                building_id=building_id,
-                                zone_id=zone_id,
-                                anomaly_type="pump_no_flow",
-                                severity=Severity.HIGH,
-                                evidence="Pump drawing power but reporting 0 flow — possible blockage or dry-run.",
-                                recommendation="Dispatch maintenance immediately. Risk of pump burnout.",
-                                detected_at=group["timestamp"].max(),
-                                event_start=group["timestamp"].min(),
-                                actual_value=0.0,
-                                expected_value=asset_info.get("flow_rated_lpm", 100.0),
-                                confidence=0.95,
-                            )
-                        )
+                        act_pwr = float(group["power_kw"].mean())
+                        candidates.append({
+                            "asset_id": asset_id,
+                            "building_id": building_id,
+                            "zone_id": zone_id,
+                            "anomaly_type": "pump_no_flow",
+                            "detector_type": "rule",
+                            "layer_name": "pump_dry_run",
+                            "detected_at": group["timestamp"].max(),
+                            "event_start": group["timestamp"].min(),
+                            "actual_value": 0.0,
+                            "expected_value": float(asset_info.get("flow_rated_lpm", 100.0)),
+                            "deviation": act_pwr,
+                            "rated_power_kw": rated_kw,
+                            "asset_type": asset_type,
+                            "evidence": "Pump drawing power but reporting 0 flow — possible blockage or dry-run.",
+                            "recommendation": "Dispatch maintenance immediately. Risk of pump burnout.",
+                        })
 
         # ------------------------------------------------------------------ #
         # Layer 4 — Rule: Sensor dropout                                     #
@@ -272,20 +411,23 @@ def detect_anomalies(
 
                 for _, group in asset_df[asset_df["is_drop"] == 1].groupby("drop_event"):
                     if len(group) >= 3:
-                        alerts.append(
-                            _make_alert(
-                                asset_id=asset_id,
-                                building_id=building_id,
-                                zone_id=zone_id,
-                                anomaly_type="sensor_dropout",
-                                severity=Severity.LOW,
-                                evidence=f"Sensor offline / missing data for {len(group)*5} min.",
-                                recommendation="Check sensor connectivity and meter communication bus.",
-                                detected_at=group["timestamp"].max(),
-                                event_start=group["timestamp"].min(),
-                                confidence=0.99,
-                            )
-                        )
+                        candidates.append({
+                            "asset_id": asset_id,
+                            "building_id": building_id,
+                            "zone_id": zone_id,
+                            "anomaly_type": "sensor_dropout",
+                            "detector_type": "rule",
+                            "layer_name": "sensor_dropout",
+                            "detected_at": group["timestamp"].max(),
+                            "event_start": group["timestamp"].min(),
+                            "actual_value": None,
+                            "expected_value": None,
+                            "deviation": None,
+                            "rated_power_kw": asset_info.get("rated_power_kw"),
+                            "asset_type": asset_info.get("asset_type"),
+                            "evidence": f"Sensor offline / missing data for {len(group)*5} min.",
+                            "recommendation": "Check sensor connectivity and meter communication bus.",
+                        })
 
         # ------------------------------------------------------------------ #
         # Layer 5 — ML: Isolation Forest (multivariate)                      #
@@ -317,28 +459,85 @@ def detect_anomalies(
 
                 for _, group in ml_outlier_df[ml_outlier_df["is_outlier"] == 1].groupby("outlier_event"):
                     if len(group) >= 4:  # At least 20 min
-                        # Only flag if it's not already caught by rules
-                        anomaly_score = -group["if_score"].mean()  # Normalize to positive
-                        confidence = min(0.9, 0.5 + anomaly_score)
-                        alerts.append(
-                            _make_alert(
-                                asset_id=asset_id,
-                                building_id=building_id,
-                                zone_id=zone_id,
-                                anomaly_type="ml_multivariate_anomaly",
-                                severity=Severity.MEDIUM if anomaly_score < 0.7 else Severity.HIGH,
-                                evidence=(
-                                    f"Isolation Forest flagged {len(group)} anomalous readings "
-                                    f"(avg anomaly score: {anomaly_score:.3f}). "
-                                    f"Power: {group['power_kw'].mean():.2f} kW vs 3h avg {group['power_ma_3h'].mean():.2f} kW."
-                                ),
-                                recommendation="Investigate asset telemetry pattern; may indicate degradation or unusual load.",
-                                detected_at=group["timestamp"].max(),
-                                event_start=group["timestamp"].min(),
-                                actual_value=group["power_kw"].mean(),
-                                confidence=round(confidence, 2),
-                            )
-                        )
+                        anomaly_score = -group["if_score"].mean()
+                        act_kw = float(group["power_kw"].mean())
+                        avg_3h = float(group["power_ma_3h"].mean())
+                        candidates.append({
+                            "asset_id": asset_id,
+                            "building_id": building_id,
+                            "zone_id": zone_id,
+                            "anomaly_type": "ml_multivariate_anomaly",
+                            "detector_type": "ml",
+                            "layer_name": "isolation_forest",
+                            "detected_at": group["timestamp"].max(),
+                            "event_start": group["timestamp"].min(),
+                            "actual_value": act_kw,
+                            "expected_value": avg_3h,
+                            "deviation": abs(act_kw - avg_3h),
+                            "rated_power_kw": asset_info.get("rated_power_kw"),
+                            "asset_type": asset_info.get("asset_type"),
+                            "evidence": (
+                                f"Isolation Forest flagged {len(group)} anomalous readings "
+                                f"(avg anomaly score: {anomaly_score:.3f}). "
+                                f"Power: {act_kw:.2f} kW vs 3h avg {avg_3h:.2f} kW."
+                            ),
+                            "recommendation": "Investigate asset telemetry pattern; may indicate degradation or unusual load.",
+                        })
+
+    # Calibrate confidence scores and assign impact-based severity across candidates
+    for i, cand in enumerate(candidates):
+        # Multi-layer agreement check: another candidate on same asset with overlapping window
+        has_agreement = False
+        agreeing_layer = None
+        for j, other in enumerate(candidates):
+            if i == j:
+                continue
+            if cand["asset_id"] == other["asset_id"] and cand["layer_name"] != other["layer_name"]:
+                # Check temporal overlap (+/- 60 min buffer)
+                overlap_start = max(cand["event_start"], other["event_start"])
+                overlap_end = min(cand["detected_at"], other["detected_at"]) + pd.Timedelta(minutes=60)
+                if overlap_start <= overlap_end:
+                    has_agreement = True
+                    agreeing_layer = other["layer_name"]
+                    break
+
+        conf = calculate_confidence_score(
+            detector_type=cand["detector_type"],
+            has_layer_agreement=has_agreement,
+            deviation=cand["deviation"],
+            baseline_power=cand["expected_value"],
+            rated_power=cand["rated_power_kw"],
+        )
+
+        sev = determine_alert_severity(
+            anomaly_type=cand["anomaly_type"],
+            deviation=cand["deviation"],
+            crit_cutoff_kw=crit_cutoff,
+            rated_power_kw=cand["rated_power_kw"],
+            asset_type=cand["asset_type"],
+        )
+
+        evidence = cand["evidence"]
+        if has_agreement and agreeing_layer:
+            evidence = f"{evidence} (Confirmed by multi-layer agreement with {agreeing_layer})"
+
+        alerts.append(
+            _make_alert(
+                asset_id=cand["asset_id"],
+                building_id=cand["building_id"],
+                zone_id=cand["zone_id"],
+                anomaly_type=cand["anomaly_type"],
+                severity=sev,
+                evidence=evidence,
+                recommendation=cand["recommendation"],
+                detected_at=cand["detected_at"],
+                event_start=cand["event_start"],
+                actual_value=cand["actual_value"],
+                expected_value=cand["expected_value"],
+                deviation=cand["deviation"],
+                confidence=conf,
+            )
+        )
 
     # Deduplicate and return
     return _deduplicate_alerts(alerts)

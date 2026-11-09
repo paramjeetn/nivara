@@ -2,7 +2,7 @@
 
 > **Methodological Disclaimer:** *Evaluated on synthetic data with injected faults; validates the pipeline, not real-world accuracy.*
 
-- **Evaluation Date:** 2026-11-09 11:41:13
+- **Evaluation Date:** 2026-11-09 12:25:58
 - **Execution Mode:** Deterministic (`np.random.seed(42)`)
 - **Dataset:** BPUT Multi-Facility Telemetry Benchmark (28 Days @ 5-min cadence)
 - **Artifacts:** `reports/eval/summary.json`, `reports/eval/anomaly_f1_comparison.png`, `reports/eval/forecast_mape_comparison.png`
@@ -68,11 +68,11 @@ By pitting Nivara's physics-informed layered engine and ML models against standa
 - **Zero Future Leakage:** Models are fit strictly on historical points prior to the split timestamp (`2025-09-22 00:00:00`).
 
 ### 3.2 Performance Comparison Table
-| Forecasting Model | Overall MAPE | Overall MAE | Overall RMSE | Weekday MAPE | Weekend MAPE | Holiday MAPE |
-|---|---|---|---|---|---|---|
-| **Ridge Regression** | **40.09%** | 9.35 kW | 11.84 kW | 27.20% | 72.33% | N/A (0 days) |
-| **Meta Prophet** | **40.47%** | 10.59 kW | 13.92 kW | 30.01% | 66.64% | N/A (0 days) |
-| **Seasonal-Naive** | **8.27%** | 4.69 kW | 14.53 kW | 9.75% | 4.56% | N/A (0 days) |
+| Forecasting Model | Overall MAPE | Overall MAE | Overall RMSE | 80% CI Coverage | Weekday MAPE | Weekend MAPE | Holiday MAPE |
+|---|---|---|---|---|---|---|---|
+| **Ridge Regression** | **40.09%** | 9.35 kW | 11.84 kW | **81.4%** | 27.20% | 72.33% | N/A (0 days) |
+| **Meta Prophet** | **40.47%** | 10.59 kW | 13.92 kW | **82.7%** | 30.01% | 66.64% | N/A (0 days) |
+| **Seasonal-Naive** | **8.27%** | 4.69 kW | 14.53 kW | **N/A** | 9.75% | 4.56% | N/A (0 days) |
 
 ---
 

@@ -56,7 +56,15 @@ def generate_prophet_forecast(
               last 24 hours of campus total meter power, or None if evaluation failed.
     """
     empty_df = pd.DataFrame(
-        columns=["timestamp", "prophet_predicted_kw", "prophet_lower_kw", "prophet_upper_kw"]
+        columns=[
+            "timestamp",
+            "prophet_predicted_kw",
+            "prophet_lower_kw",
+            "prophet_upper_kw",
+            "yhat",
+            "yhat_lower",
+            "yhat_upper",
+        ]
     )
 
     try:
@@ -158,12 +166,23 @@ def generate_prophet_forecast(
         future_df = model.make_future_dataframe(periods=288, freq="5min", include_history=False)
         forecast = model.predict(future_df)
 
+        pred = np.clip(forecast["yhat"].values, 0, None)
+        low = np.clip(forecast["yhat_lower"].values, 0, None)
+        high = np.clip(forecast["yhat_upper"].values, 0, None)
+
+        # Enforce non-negative bounds and monotonicity: 0 <= low <= pred <= high
+        low = np.minimum(low, pred)
+        high = np.maximum(high, pred)
+
         result_df = pd.DataFrame(
             {
                 "timestamp": forecast["ds"],
-                "prophet_predicted_kw": np.clip(forecast["yhat"], 0, None),
-                "prophet_lower_kw": np.clip(forecast["yhat_lower"], 0, None),
-                "prophet_upper_kw": np.clip(forecast["yhat_upper"], 0, None),
+                "prophet_predicted_kw": pred,
+                "prophet_lower_kw": low,
+                "prophet_upper_kw": high,
+                "yhat": pred,
+                "yhat_lower": low,
+                "yhat_upper": high,
             }
         )
 

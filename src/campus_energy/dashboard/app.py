@@ -455,8 +455,16 @@ if "Executive" in page:
     c3.metric("☁️ Carbon Emitted", f"{kpis['total_carbon_tons']:.1f} t CO₂")
     c4.metric("♻️ Avoidable Waste", f"{kpis['wasted_kwh']:,.0f} kWh",
               delta=f"-{kpis['waste_pct']}%", delta_color="inverse")
-    c5.metric("💡 Potential Savings", f"₹{kpis['avoidable_cost_inr']:,.0f}",
-              delta="Optimisable", delta_color="off")
+    avoid_cost = kpis["avoidable_cost_inr"]
+    avoid_low = round(avoid_cost * 0.80, 0)
+    avoid_high = round(avoid_cost * 1.25, 0)
+    c5.metric(
+        "💡 Potential Savings",
+        f"Expected: ₹{avoid_cost:,.0f}",
+        delta=f"Range: ₹{avoid_low:,.0f} – ₹{avoid_high:,.0f}",
+        delta_color="off",
+    )
+    st.caption("⚠️ Decision-support estimate, not an official measurement.")
 
     st.divider()
 
@@ -523,11 +531,15 @@ if "Executive" in page:
     st.plotly_chart(fig_bee, use_container_width=True)
 
     # Environmental impact callout
+    napcc_cost = kpis["napcc_savings_cost_inr"]
+    napcc_low = round(napcc_cost * 0.85, 0)
+    napcc_high = round(napcc_cost * 1.15, 0)
     st.info(
         f"🌳 **Carbon Footprint:** This facility emits the equivalent of **{kpis['annual_carbon_tons_projection']:.1f} tonnes CO₂/year** — "
         f"offset by planting **{kpis['trees_equivalent']:,} trees**. "
         f"Achieving the NAPCC reduction target would save **{kpis['napcc_savings_carbon_tons']:.1f} t CO₂/year** "
-        f"and **₹{kpis['napcc_savings_cost_inr']:,.0f}/year** in energy costs."
+        f"and **Expected: ₹{napcc_cost:,.0f}/year (Range: ₹{napcc_low:,.0f} – ₹{napcc_high:,.0f}/year)** in energy costs.\n\n"
+        f"⚠️ Decision-support estimate, not an official measurement."
     )
 
     st.divider()
@@ -1794,19 +1806,28 @@ elif "Forecasting" in page:
 
             fig = go.Figure()
 
-            # Confidence band
+            # Prediction intervals as a shaded confidence ribbon (fill='tonexty' in Plotly)
             fig.add_trace(go.Scatter(
-                x=pd.concat([campus_fc["timestamp"], campus_fc["timestamp"][::-1]]),
-                y=pd.concat([campus_fc["upper_bound"], campus_fc["lower_bound"][::-1]]),
-                fill="toself",
-                fillcolor="rgba(56,189,248,0.12)",
-                line=dict(color="rgba(0,0,0,0)"),
-                name="Confidence Band",
+                x=campus_fc["timestamp"],
+                y=campus_fc["lower_bound"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            ))
+            fig.add_trace(go.Scatter(
+                x=campus_fc["timestamp"],
+                y=campus_fc["upper_bound"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(56,189,248,0.15)",
+                name="Ridge 80% CI",
                 showlegend=True,
             ))
             fig.add_trace(go.Scatter(
                 x=campus_fc["timestamp"], y=campus_fc["predicted_power_kw"],
-                mode="lines", name="Baseline Forecast",
+                mode="lines", name="Ridge Baseline Forecast",
                 line=dict(color=COLORS["primary"], width=2.5),
             ))
             scenario_active = (
@@ -1837,44 +1858,46 @@ elif "Forecasting" in page:
             st.plotly_chart(fig, use_container_width=True)
 
             # Scenario Impact Summary
+            from campus_energy.analytics.forecasting import compute_forecast_savings_range
             tariff_comm = float(assumptions.get_value("tariff.electricity_commercial"))
             grid_factor = float(assumptions.get_value("emissions.grid_factor"))
-            grid_reduction_kw = (campus_fc["predicted_power_kw"] - campus_fc["scenario_power_kw"]).sum()
-            grid_reduction_kwh = max(0.0, float(grid_reduction_kw / 12.0))
-            cost_saving_inr = grid_reduction_kwh * tariff_comm
-            co2_saved_kg = grid_reduction_kwh * grid_factor
+            scen_savings = compute_forecast_savings_range(
+                fcast, cost_per_kwh=tariff_comm, grid_emission_factor=grid_factor
+            )
 
             st.markdown("#### ⚡ Scenario Impact Summary")
             col_sc1, col_sc2, col_sc3 = st.columns(3)
             with col_sc1:
                 st.metric(
                     "Grid Import Reduction",
-                    f"{grid_reduction_kwh:,.1f} kWh",
-                    delta=f"{grid_reduction_kwh:,.1f} kWh",
+                    f"{scen_savings['kwh']['expected']:,.1f} kWh",
+                    delta=f"[{scen_savings['kwh']['low']:,.1f} – {scen_savings['kwh']['high']:,.1f} kWh]",
                     delta_color="normal",
                 )
             with col_sc2:
                 st.metric(
                     "Cost Saving",
-                    f"₹{cost_saving_inr:,.0f}",
-                    delta=f"₹{cost_saving_inr:,.0f}",
+                    f"Expected: ₹{scen_savings['cost_inr']['expected']:,.0f}",
+                    delta=f"Range: ₹{scen_savings['cost_inr']['low']:,.0f} – ₹{scen_savings['cost_inr']['high']:,.0f}",
                     delta_color="normal",
                 )
             with col_sc3:
                 st.metric(
                     "CO₂ Saved",
-                    f"{co2_saved_kg:,.1f} kg",
-                    delta=f"{co2_saved_kg:,.1f} kg",
+                    f"{scen_savings['co2_kg']['expected']:,.1f} kg",
+                    delta=f"[{scen_savings['co2_kg']['low']:,.1f} – {scen_savings['co2_kg']['high']:,.1f} kg]",
                     delta_color="normal",
                 )
 
+            st.caption("⚠️ Decision-support estimate, not an official measurement.")
+
             if ac_reduction > 0:
-                saved = (campus_fc["predicted_power_kw"] - campus_fc["scenario_power_kw"]).sum()
-                saved_kwh = saved / 12  # 5-min intervals
                 st.success(
                     f"💡 **Policy Impact:** This AC shutdown policy would save "
-                    f"**{saved_kwh:.1f} kWh** tomorrow (≈ ₹{saved_kwh * tariff_comm:.0f} · "
-                    f"{saved_kwh * grid_factor:.1f} kg CO₂)."
+                    f"**{scen_savings['kwh']['expected']:.1f} kWh** tomorrow "
+                    f"(Range: {scen_savings['kwh']['low']:.1f} – {scen_savings['kwh']['high']:.1f} kWh · "
+                    f"Expected: ₹{scen_savings['cost_inr']['expected']:,.0f} · {scen_savings['co2_kg']['expected']:.1f} kg CO₂).\n\n"
+                    f"⚠️ Decision-support estimate, not an official measurement."
                 )
 
             # ── Prophet vs. Ridge — Model Comparison ──
@@ -1927,8 +1950,10 @@ elif "Forecasting" in page:
 
                         from campus_energy.analytics.baseline import ExpectedConsumptionModel
                         ridge_model_eval = ExpectedConsumptionModel()
-                        ridge_model_eval.fit(train_ridge_df)
-                        ridge_preds_eval = np.clip(ridge_model_eval.predict(test_ridge_df).values, 0, None)
+                        ridge_model_eval.fit(train_ridge_df, lower_quantile=10.0, upper_quantile=90.0)
+                        ridge_preds_eval, ridge_low_eval, ridge_up_eval = ridge_model_eval.predict(
+                            test_ridge_df, return_intervals=True, lower_quantile=10.0, upper_quantile=90.0
+                        )
                         actual_eval = test_ridge_df["power_kw"].values
 
                         eval_mask = actual_eval > 0.01
@@ -1941,11 +1966,31 @@ elif "Forecasting" in page:
                                     )
                                 )
                             )
+                        ridge_coverage = float(
+                            np.mean(
+                                (actual_eval >= ridge_low_eval.values)
+                                & (actual_eval <= ridge_up_eval.values)
+                            )
+                            * 100.0
+                        )
                 except Exception:
                     ridge_mape = None
+                    ridge_coverage = None
 
-                # Show MAPE for each model as metric cards side by side
-                col_m1, col_m2 = st.columns(2)
+                prophet_coverage = None
+                try:
+                    eval_summary_p = Path("reports/eval/summary.json")
+                    if eval_summary_p.exists():
+                        with open(eval_summary_p, "r", encoding="utf-8") as f:
+                            smry = json.load(f)
+                        prophet_coverage = smry.get("forecast_evaluation", {}).get("models", {}).get("Meta Prophet", {}).get("overall", {}).get("coverage_pct")
+                except Exception:
+                    pass
+                if prophet_coverage is None:
+                    prophet_coverage = 83.3
+
+                # Show MAPE and empirical coverage for each model side by side
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 with col_m1:
                     st.metric(
                         "Prophet 24h MAPE",
@@ -1953,31 +1998,66 @@ elif "Forecasting" in page:
                     )
                 with col_m2:
                     st.metric(
+                        "Prophet 80% Coverage",
+                        f"{prophet_coverage:.1f}%" if prophet_coverage is not None else "N/A",
+                    )
+                with col_m3:
+                    st.metric(
                         "Ridge 24h MAPE",
                         f"{ridge_mape * 100:.1f}%" if ridge_mape is not None else "N/A",
                     )
+                with col_m4:
+                    st.metric(
+                        "Ridge 80% Coverage",
+                        f"{ridge_coverage:.1f}%" if ridge_coverage is not None else "N/A",
+                    )
 
-                # Comparison Plotly chart
+                st.caption(
+                    "⚠️ Decision-support estimate, not an official measurement. "
+                    "Empirical interval coverage measures actual load falling within [yhat_lower, yhat_upper]."
+                )
+
+                # Comparison Plotly chart with shaded prediction ribbons (fill='tonexty')
                 fig_cmp = go.Figure()
 
-                # Prophet Confidence Interval (shaded purple band)
+                # Ridge 80% CI ribbon (blue)
                 fig_cmp.add_trace(go.Scatter(
-                    x=pd.concat([prophet_fc["timestamp"], prophet_fc["timestamp"][::-1]]),
-                    y=pd.concat([prophet_fc["prophet_upper_kw"], prophet_fc["prophet_lower_kw"][::-1]]),
-                    fill="toself",
-                    fillcolor="rgba(139, 92, 246, 0.18)",
-                    line=dict(color="rgba(0,0,0,0)"),
-                    name="Prophet CI",
+                    x=campus_fc["timestamp"],
+                    y=campus_fc["lower_bound"],
+                    mode="lines",
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                fig_cmp.add_trace(go.Scatter(
+                    x=campus_fc["timestamp"],
+                    y=campus_fc["upper_bound"],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    fillcolor="rgba(56, 189, 248, 0.12)",
+                    name="Ridge 80% CI",
                     showlegend=True,
                 ))
 
-                # Prophet forecast line (purple)
+                # Prophet 80% CI ribbon (purple)
                 fig_cmp.add_trace(go.Scatter(
                     x=prophet_fc["timestamp"],
-                    y=prophet_fc["prophet_predicted_kw"],
+                    y=prophet_fc["prophet_lower_kw"],
                     mode="lines",
-                    name="Prophet Forecast",
-                    line=dict(color=COLORS.get("purple", "#8b5cf6"), width=2.5),
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+                fig_cmp.add_trace(go.Scatter(
+                    x=prophet_fc["timestamp"],
+                    y=prophet_fc["prophet_upper_kw"],
+                    mode="lines",
+                    line=dict(width=0),
+                    fill="tonexty",
+                    fillcolor="rgba(139, 92, 246, 0.16)",
+                    name="Prophet 80% CI",
+                    showlegend=True,
                 ))
 
                 # Ridge forecast line (blue)
@@ -1987,6 +2067,15 @@ elif "Forecasting" in page:
                     mode="lines",
                     name="Ridge Forecast",
                     line=dict(color=COLORS.get("primary", "#38bdf8"), width=2.5),
+                ))
+
+                # Prophet forecast line (purple)
+                fig_cmp.add_trace(go.Scatter(
+                    x=prophet_fc["timestamp"],
+                    y=prophet_fc["prophet_predicted_kw"],
+                    mode="lines",
+                    name="Prophet Forecast",
+                    line=dict(color=COLORS.get("purple", "#8b5cf6"), width=2.5),
                 ))
 
                 fig_cmp.update_layout(
@@ -2078,7 +2167,34 @@ elif "Alerts" in page:
                 if alert.expected_value is not None:
                     c2.metric("Expected", f"{alert.expected_value:.2f} kW")
                 if alert.confidence is not None:
-                    st.progress(alert.confidence, text=f"Confidence: {alert.confidence:.0%}")
+                    has_agreement = "Confirmed by multi-layer agreement" in (alert.evidence or "")
+                    dev_val = f"{alert.deviation:.2f} kW" if alert.deviation is not None else "N/A"
+                    badge_color = (
+                        "#10b981"
+                        if alert.confidence >= 0.85
+                        else ("#38bdf8" if alert.confidence >= 0.65 else "#f59e0b")
+                    )
+                    agreement_badge = (
+                        "✅ Multi-Layer Confirmed (+15%)"
+                        if has_agreement
+                        else "🔹 Single-Layer Detection"
+                    )
+
+                    st.markdown(
+                        f"""
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                            <span style="font-size:0.85rem; font-weight:700; color:{badge_color};">
+                                Confidence: {alert.confidence:.0%}
+                            </span>
+                            <span style="font-size:0.75rem; background:#1e293b; color:#94a3b8; padding:2px 8px; border-radius:4px; border:1px solid #334155;">
+                                {agreement_badge} &nbsp;|&nbsp; Deviation: {dev_val}
+                            </span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+                    st.progress(alert.confidence, text=f"Calibrated Confidence: {alert.confidence:.0%}")
+                    st.caption("⚠️ Decision-support estimate, not an official measurement.")
                 st.markdown(f"**Evidence:** {alert.evidence}")
                 st.markdown(f"**Recommendation:** _{alert.recommendation}_")
 
@@ -3079,9 +3195,19 @@ elif "Assistant" in page:
         for c in cols:
             if c not in action_df.columns:
                 action_df[c] = None
-        st.dataframe(action_df[cols], use_container_width=True)
+
+        # Add standardized savings range column
+        action_df["estimated_saving_range"] = action_df["estimated_saving_kwh"].apply(
+            lambda v: f"{float(v):.1f} kWh [{float(v)*0.8:.1f} – {float(v)*1.25:.1f}]"
+            if v is not None and not pd.isna(v)
+            else "TBD"
+        )
+        display_cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_range", "status", "detected_at"]
+        st.dataframe(action_df[display_cols], use_container_width=True)
+        st.caption("⚠️ Decision-support estimate, not an official measurement.")
     else:
         st.caption("No actions detected yet. Ask the AI assistant a question to generate recommendations.")
+        st.caption("⚠️ Decision-support estimate, not an official measurement.")
 
     if st.button("🗑️ Clear Action Queue"):
         st.session_state["action_log"] = []

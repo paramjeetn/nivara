@@ -9,16 +9,22 @@ from campus_energy.analytics.forecasting_prophet import generate_prophet_forecas
 DATA_DIR = Path(__file__).parent.parent / "data" / "generated"
 
 
+EXPECTED_COLS = [
+    "timestamp",
+    "prophet_predicted_kw",
+    "prophet_lower_kw",
+    "prophet_upper_kw",
+    "yhat",
+    "yhat_lower",
+    "yhat_upper",
+]
+
+
 def test_prophet_forecast_empty_inputs():
     """Verify safe fallback on empty DataFrames."""
     df, mape = generate_prophet_forecast(pd.DataFrame(), pd.DataFrame())
     assert df.empty
-    assert list(df.columns) == [
-        "timestamp",
-        "prophet_predicted_kw",
-        "prophet_lower_kw",
-        "prophet_upper_kw",
-    ]
+    assert list(df.columns) == EXPECTED_COLS
     assert mape is None
 
 
@@ -40,15 +46,12 @@ def test_prophet_forecast_synthetic():
 
     assert not df.empty
     assert len(df) == 288
-    assert list(df.columns) == [
-        "timestamp",
-        "prophet_predicted_kw",
-        "prophet_lower_kw",
-        "prophet_upper_kw",
-    ]
+    assert list(df.columns) == EXPECTED_COLS
     assert (df["prophet_predicted_kw"] >= 0).all()
     assert (df["prophet_lower_kw"] >= 0).all()
     assert (df["prophet_upper_kw"] >= df["prophet_lower_kw"]).all()
+    assert (df["yhat_lower"] <= df["yhat"]).all()
+    assert (df["yhat"] <= df["yhat_upper"]).all()
     assert mape is not None
     assert isinstance(mape, float)
     assert 0.0 <= mape < 1.0
@@ -69,11 +72,6 @@ def test_prophet_forecast_with_generated_data():
 
     assert not df.empty
     assert len(df) == 288
-    assert list(df.columns) == [
-        "timestamp",
-        "prophet_predicted_kw",
-        "prophet_lower_kw",
-        "prophet_upper_kw",
-    ]
+    assert list(df.columns) == EXPECTED_COLS
     assert mape is not None
     assert isinstance(mape, float)

@@ -135,6 +135,25 @@ def calculate_esg_metrics(
     avoidable_cost_inr = wasted_kwh * cost_per_kwh
     avoidable_carbon_kg = wasted_kwh * grid_emission_factor
 
+    # Standardized Savings Ranges {low, expected, high}
+    avoidable_savings_range = {
+        "kwh": {
+            "low": round(wasted_kwh * 0.80, 1),
+            "expected": round(wasted_kwh, 1),
+            "high": round(wasted_kwh * 1.25, 1),
+        },
+        "cost_inr": {
+            "low": round(avoidable_cost_inr * 0.80, 2),
+            "expected": round(avoidable_cost_inr, 2),
+            "high": round(avoidable_cost_inr * 1.25, 2),
+        },
+        "carbon_kg": {
+            "low": round(avoidable_carbon_kg * 0.80, 1),
+            "expected": round(avoidable_carbon_kg, 1),
+            "high": round(avoidable_carbon_kg * 1.25, 1),
+        },
+    }
+
     # --- Daily campus energy trend ---
     daily = (
         meters.groupby("date")["interval_energy_kwh"]
@@ -175,6 +194,24 @@ def calculate_esg_metrics(
     napcc_savings_cost = napcc_savings_kwh * cost_per_kwh
     napcc_savings_carbon_tons = (napcc_savings_kwh * grid_emission_factor) / 1000
 
+    napcc_savings_range = {
+        "kwh": {
+            "low": round(napcc_savings_kwh * 0.85, 0),
+            "expected": round(napcc_savings_kwh, 0),
+            "high": round(napcc_savings_kwh * 1.15, 0),
+        },
+        "cost_inr": {
+            "low": round(napcc_savings_cost * 0.85, 0),
+            "expected": round(napcc_savings_cost, 0),
+            "high": round(napcc_savings_cost * 1.15, 0),
+        },
+        "carbon_tons": {
+            "low": round(napcc_savings_carbon_tons * 0.85, 2),
+            "expected": round(napcc_savings_carbon_tons, 2),
+            "high": round(napcc_savings_carbon_tons * 1.15, 2),
+        },
+    }
+
     return {
         "kpis": {
             "total_energy_kwh": round(total_energy_kwh, 1),
@@ -192,8 +229,24 @@ def calculate_esg_metrics(
             "napcc_savings_kwh": round(napcc_savings_kwh, 0),
             "napcc_savings_cost_inr": round(napcc_savings_cost, 0),
             "napcc_savings_carbon_tons": round(napcc_savings_carbon_tons, 2),
+            "avoidable_savings_range": avoidable_savings_range,
+            "napcc_savings_range": napcc_savings_range,
+            "avoidable_cost_display": f"Expected: ₹{avoidable_cost_inr:,.0f} (Range: ₹{avoidable_cost_inr*0.8:,.0f} – ₹{avoidable_cost_inr*1.25:,.0f})",
+            "napcc_savings_cost_display": f"Expected: ₹{napcc_savings_cost:,.0f} (Range: ₹{napcc_savings_cost*0.85:,.0f} – ₹{napcc_savings_cost*1.15:,.0f})",
+            "disclaimer": "⚠️ Decision-support estimate, not an official measurement.",
         },
         "bee": bee,
         "daily_trend": daily,
         "building_breakdown": building_energy,
     }
+
+
+def format_savings_range_inr(range_dict: dict[str, float]) -> str:
+    """Format an INR savings range dict {low, expected, high} for UI display."""
+    return f"Expected: ₹{range_dict['expected']:,.0f} (Range: ₹{range_dict['low']:,.0f} – ₹{range_dict['high']:,.0f})"
+
+
+def format_savings_range_kwh(range_dict: dict[str, float]) -> str:
+    """Format a kWh savings range dict {low, expected, high} for UI display."""
+    return f"{range_dict['expected']:,.1f} kWh [{range_dict['low']:,.1f} – {range_dict['high']:,.1f}]"
+

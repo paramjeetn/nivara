@@ -1,7 +1,7 @@
 {
   "metadata": {
     "evaluation_title": "Nivara Proof Layer & Model Verification Harness",
-    "evaluation_timestamp": "2026-11-09T11:41:08.752781",
+    "evaluation_timestamp": "2026-11-09T12:25:55.191448",
     "random_seed": 42,
     "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
     "tolerance_minutes": 60,
@@ -415,24 +415,28 @@
           "mae_kw": 9.35,
           "mape_pct": 40.09,
           "rmse_kw": 11.84,
+          "coverage_pct": 81.4,
           "count": 2016
         },
         "weekday": {
           "mae_kw": 7.74,
           "mape_pct": 27.2,
           "rmse_kw": 9.66,
+          "coverage_pct": 90.83,
           "count": 1440
         },
         "weekend": {
           "mae_kw": 13.36,
           "mape_pct": 72.33,
           "rmse_kw": 16.03,
+          "coverage_pct": 57.81,
           "count": 576
         },
         "holiday": {
           "mae_kw": null,
           "mape_pct": null,
           "rmse_kw": null,
+          "coverage_pct": null,
           "count": 0,
           "note": "0 holiday days in test window"
         }
@@ -442,24 +446,28 @@
           "mae_kw": 10.59,
           "mape_pct": 40.47,
           "rmse_kw": 13.92,
+          "coverage_pct": 82.74,
           "count": 2016
         },
         "weekday": {
           "mae_kw": 9.58,
           "mape_pct": 30.01,
           "rmse_kw": 13.39,
+          "coverage_pct": 84.03,
           "count": 1440
         },
         "weekend": {
           "mae_kw": 13.12,
           "mape_pct": 66.64,
           "rmse_kw": 15.15,
+          "coverage_pct": 79.51,
           "count": 576
         },
         "holiday": {
           "mae_kw": null,
           "mape_pct": null,
           "rmse_kw": null,
+          "coverage_pct": null,
           "count": 0,
           "note": "0 holiday days in test window"
         }
@@ -469,24 +477,28 @@
           "mae_kw": 4.69,
           "mape_pct": 8.27,
           "rmse_kw": 14.53,
+          "coverage_pct": null,
           "count": 2016
         },
         "weekday": {
           "mae_kw": 6.18,
           "mape_pct": 9.75,
           "rmse_kw": 17.15,
+          "coverage_pct": null,
           "count": 1440
         },
         "weekend": {
           "mae_kw": 0.98,
           "mape_pct": 4.56,
           "rmse_kw": 1.97,
+          "coverage_pct": null,
           "count": 576
         },
         "holiday": {
           "mae_kw": null,
           "mape_pct": null,
           "rmse_kw": null,
+          "coverage_pct": null,
           "count": 0,
           "note": "0 holiday days in test window"
         }
@@ -498,6 +510,8 @@
         "Overall MAPE (%)": 40.09,
         "Overall MAE (kW)": 9.35,
         "Overall RMSE (kW)": 11.84,
+        "80% Interval Coverage (%)": "81.4%",
+        "Interval Coverage (%)": "81.4%",
         "Weekday MAPE (%)": 27.2,
         "Weekend MAPE (%)": 72.33,
         "Holiday MAPE (%)": "N/A (0 days)"
@@ -507,6 +521,8 @@
         "Overall MAPE (%)": 40.47,
         "Overall MAE (kW)": 10.59,
         "Overall RMSE (kW)": 13.92,
+        "80% Interval Coverage (%)": "82.7%",
+        "Interval Coverage (%)": "82.7%",
         "Weekday MAPE (%)": 30.01,
         "Weekend MAPE (%)": 66.64,
         "Holiday MAPE (%)": "N/A (0 days)"
@@ -516,6 +532,8 @@
         "Overall MAPE (%)": 8.27,
         "Overall MAE (kW)": 4.69,
         "Overall RMSE (kW)": 14.53,
+        "80% Interval Coverage (%)": "N/A",
+        "Interval Coverage (%)": "N/A",
         "Weekday MAPE (%)": 9.75,
         "Weekend MAPE (%)": 4.56,
         "Holiday MAPE (%)": "N/A (0 days)"

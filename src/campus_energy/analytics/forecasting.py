@@ -102,9 +102,9 @@ def generate_24h_forecast(
         if len(asset_train) < 100:
             continue
 
-        # Fit an extended baseline model
+        # Fit an extended baseline model with empirical prediction intervals
         model = ExpectedConsumptionModel()
-        model.fit(asset_train)
+        model.fit(asset_train, lower_quantile=10.0, upper_quantile=90.0)
 
         # Build future feature frame
         future_df = pd.DataFrame({"timestamp": future_timestamps})
@@ -126,42 +126,60 @@ def generate_24h_forecast(
         future_df["power_ma_3h"] = last_ma
         future_df["power_std_3h"] = last_std
 
-        preds = model.predict(future_df)
-        future_df["predicted_power_kw"] = np.clip(preds, 0, None)
-
-        # Uncertainty bands scale with std
-        future_df["lower_bound"] = np.clip(future_df["predicted_power_kw"] * 0.88, 0, None)
-        future_df["upper_bound"] = future_df["predicted_power_kw"] * 1.12
+        # Predict baseline and empirical residual prediction intervals (80% interval)
+        yhat, yhat_lower, yhat_upper = model.predict(
+            future_df, return_intervals=True, lower_quantile=10.0, upper_quantile=90.0
+        )
+        future_df["predicted_power_kw"] = np.clip(yhat, 0, None)
+        future_df["lower_bound"] = np.clip(yhat_lower, 0, None)
+        future_df["upper_bound"] = np.clip(yhat_upper, 0, None)
+        future_df["baseline_lower"] = future_df["lower_bound"]
+        future_df["baseline_upper"] = future_df["upper_bound"]
 
         scenario_power = future_df["predicted_power_kw"].copy()
+        scenario_lower = future_df["lower_bound"].copy()
+        scenario_upper = future_df["upper_bound"].copy()
 
         # Occupancy reduction: scale down predicted load proportionally
         # Assumption: 60% of building load is occupancy-driven
         if occupancy_reduction_pct > 0:
-            occ_factor = 1 - (occupancy_reduction_pct / 100.0) * 0.60
+            occ_factor = 1.0 - (occupancy_reduction_pct / 100.0) * 0.60
             scenario_power = scenario_power * occ_factor
+            scenario_lower = scenario_lower * occ_factor
+            scenario_upper = scenario_upper * occ_factor
 
         # Solar PV: subtract average solar generation (assume 4 peak sun hours/day, 5-min intervals)
-        # Solar generation per 5-min interval = solar_pv_kwp * (4/24) * (5/60) but clamp to daylight hours (6-18)
         if solar_pv_kwp > 0:
-            is_daylight = future_df["hour"].between(6, 18)
+            is_daylight = future_df["hour"].between(6, 18).astype(float)
             solar_per_interval_kw = solar_pv_kwp * 0.80  # 80% capacity factor during daylight
-            scenario_power = scenario_power - (is_daylight * solar_per_interval_kw)
-            scenario_power = scenario_power.clip(lower=0)
+            solar_reduction = is_daylight * solar_per_interval_kw
+            scenario_power = np.clip(scenario_power - solar_reduction, 0, None)
+            scenario_lower = np.clip(scenario_lower - solar_reduction, 0, None)
+            scenario_upper = np.clip(scenario_upper - solar_reduction, 0, None)
 
         # LED upgrade: reduce lighting load by 40% (lighting typically 20-25% of total load)
         if led_upgrade:
             lighting_fraction = 0.22  # 22% of total building load is lighting
             led_saving_factor = 0.40  # LED saves 40% vs fluorescent
-            scenario_power = scenario_power * (1 - lighting_fraction * led_saving_factor)
+            led_factor = 1.0 - lighting_fraction * led_saving_factor
+            scenario_power = scenario_power * led_factor
+            scenario_lower = scenario_lower * led_factor
+            scenario_upper = scenario_upper * led_factor
 
         # Apply AC policy on top
         if ac_policy_reduction_pct > 0:
-            after_6pm = future_df["hour"] >= 18
-            scenario_power = scenario_power.copy()
-            scenario_power[after_6pm] *= (1 - ac_policy_reduction_pct / 100.0)
+            after_6pm = (future_df["hour"] >= 18).astype(float)
+            ac_factor = 1.0 - (ac_policy_reduction_pct / 100.0) * after_6pm
+            scenario_power = scenario_power * ac_factor
+            scenario_lower = scenario_lower * ac_factor
+            scenario_upper = scenario_upper * ac_factor
+
+        scenario_lower = np.clip(np.minimum(scenario_lower, scenario_power), 0, None)
+        scenario_upper = np.maximum(scenario_upper, scenario_power)
 
         future_df["scenario_power_kw"] = scenario_power
+        future_df["scenario_lower"] = scenario_lower
+        future_df["scenario_upper"] = scenario_upper
 
         forecasts.append(
             future_df[
@@ -171,7 +189,11 @@ def generate_24h_forecast(
                     "predicted_power_kw",
                     "lower_bound",
                     "upper_bound",
+                    "baseline_lower",
+                    "baseline_upper",
                     "scenario_power_kw",
+                    "scenario_lower",
+                    "scenario_upper",
                 ]
             ]
         )
@@ -180,3 +202,90 @@ def generate_24h_forecast(
         return pd.DataFrame()
 
     return pd.concat(forecasts, ignore_index=True)
+
+
+def compute_forecast_savings_range(
+    forecast_df: pd.DataFrame,
+    cost_per_kwh: float | None = None,
+    grid_emission_factor: float | None = None,
+) -> dict[str, dict[str, float]]:
+    """Compute 24-hour scenario savings ranges {low, expected, high}.
+
+    Parameters:
+        forecast_df: Output from generate_24h_forecast.
+        cost_per_kwh: Commercial electricity tariff in INR/kWh (defaults to assumptions registry).
+        grid_emission_factor: Grid emission factor in kgCO2e/kWh (defaults to assumptions registry).
+
+    Returns:
+        dict with keys 'kwh', 'cost_inr', 'co2_kg', each having subkeys 'low', 'expected', 'high'.
+    """
+    if forecast_df.empty or "scenario_power_kw" not in forecast_df.columns:
+        empty_range = {"low": 0.0, "expected": 0.0, "high": 0.0}
+        return {"kwh": empty_range, "cost_inr": empty_range, "co2_kg": empty_range}
+
+    if cost_per_kwh is None:
+        try:
+            from campus_energy import assumptions
+            cost_per_kwh = float(assumptions.get_value("tariff.electricity_commercial"))
+        except Exception:
+            cost_per_kwh = 7.50
+
+    if grid_emission_factor is None:
+        try:
+            from campus_energy import assumptions
+            grid_emission_factor = float(assumptions.get_value("emissions.grid_factor"))
+        except Exception:
+            grid_emission_factor = 0.82
+
+    # Energy reduction across 5-minute intervals (12 intervals / hour)
+    saved_kw_expected = np.clip(
+        forecast_df["predicted_power_kw"] - forecast_df["scenario_power_kw"], 0, None
+    )
+    kwh_expected = float(saved_kw_expected.sum() / 12.0)
+
+    # Uncertainty bounds on savings
+    base_low = (
+        forecast_df["baseline_lower"]
+        if "baseline_lower" in forecast_df.columns
+        else forecast_df["lower_bound"]
+    )
+    scen_low = (
+        forecast_df["scenario_lower"]
+        if "scenario_lower" in forecast_df.columns
+        else forecast_df["scenario_power_kw"]
+    )
+    base_high = (
+        forecast_df["baseline_upper"]
+        if "baseline_upper" in forecast_df.columns
+        else forecast_df["upper_bound"]
+    )
+    scen_high = (
+        forecast_df["scenario_upper"]
+        if "scenario_upper" in forecast_df.columns
+        else forecast_df["scenario_power_kw"]
+    )
+
+    saved_kw_low = np.clip(base_low - scen_low, 0, None)
+    kwh_low = float(saved_kw_low.sum() / 12.0)
+
+    saved_kw_high = np.clip(base_high - scen_high, 0, None)
+    kwh_high = float(saved_kw_high.sum() / 12.0)
+
+    # Monotonicity check
+    kwh_low = min(kwh_low, kwh_expected)
+    kwh_high = max(kwh_high, kwh_expected)
+
+    cost_low = round(kwh_low * cost_per_kwh, 2)
+    cost_exp = round(kwh_expected * cost_per_kwh, 2)
+    cost_high = round(kwh_high * cost_per_kwh, 2)
+
+    co2_low = round(kwh_low * grid_emission_factor, 2)
+    co2_exp = round(kwh_expected * grid_emission_factor, 2)
+    co2_high = round(kwh_high * grid_emission_factor, 2)
+
+    return {
+        "kwh": {"low": round(kwh_low, 1), "expected": round(kwh_expected, 1), "high": round(kwh_high, 1)},
+        "cost_inr": {"low": cost_low, "expected": cost_exp, "high": cost_high},
+        "co2_kg": {"low": co2_low, "expected": co2_exp, "high": co2_high},
+    }
+

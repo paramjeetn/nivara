@@ -95,10 +95,21 @@ def prepare_forecast_data(
     return campus_df, holiday_dates
 
 
-def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
-    """Compute MAE, MAPE, and RMSE metrics."""
+def compute_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    y_lower: np.ndarray | None = None,
+    y_upper: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """Compute MAE, MAPE, RMSE, and empirical interval coverage metrics."""
     if len(y_true) == 0:
-        return {"mae_kw": 0.0, "mape_pct": 0.0, "rmse_kw": 0.0, "count": 0}
+        return {
+            "mae_kw": 0.0,
+            "mape_pct": 0.0,
+            "rmse_kw": 0.0,
+            "coverage_pct": None,
+            "count": 0,
+        }
 
     diff = np.abs(y_true - y_pred)
     mae = float(np.mean(diff))
@@ -110,10 +121,16 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
     else:
         mape = 0.0
 
+    coverage_pct = None
+    if y_lower is not None and y_upper is not None and len(y_lower) == len(y_true):
+        covered = (y_true >= y_lower) & (y_true <= y_upper)
+        coverage_pct = round(float(np.mean(covered) * 100.0), 2)
+
     return {
         "mae_kw": round(mae, 2),
         "mape_pct": round(mape, 2),
         "rmse_kw": round(rmse, 2),
+        "coverage_pct": coverage_pct,
         "count": int(len(y_true)),
     }
 
@@ -151,11 +168,16 @@ def run_forecast_evaluation(
     logger.info("Training points: %d (until %s), Test points: %d (from %s)", len(train_df), split_ts, len(test_df), split_ts)
 
     # ------------------------------------------------------------------ #
-    # Model 1: Ridge Regression (ExpectedConsumptionModel)               #
+    # Model 1: Ridge Regression (ExpectedConsumptionModel baseline)       #
     # ------------------------------------------------------------------ #
     ridge_model = ExpectedConsumptionModel()
-    ridge_model.fit(train_df)
-    test_df["pred_ridge"] = np.clip(ridge_model.predict(test_df), 0.0, None)
+    ridge_model.fit(train_df, lower_quantile=10.0, upper_quantile=90.0)
+    pred_r, low_r, up_r = ridge_model.predict(
+        test_df, return_intervals=True, lower_quantile=10.0, upper_quantile=90.0
+    )
+    test_df["pred_ridge"] = np.clip(pred_r, 0.0, None)
+    test_df["pred_ridge_lower"] = np.clip(low_r, 0.0, None)
+    test_df["pred_ridge_upper"] = np.clip(up_r, 0.0, None)
 
     # ------------------------------------------------------------------ #
     # Model 2: Meta Prophet                                              #
@@ -171,7 +193,15 @@ def run_forecast_evaluation(
     prophet.fit(pdf_train)
     pdf_test = test_df.rename(columns={"timestamp": "ds"})[["ds"]]
     fc_prophet = prophet.predict(pdf_test)
-    test_df["pred_prophet"] = np.clip(fc_prophet["yhat"].values, 0.0, None)
+    pred_p = np.clip(fc_prophet["yhat"].values, 0.0, None)
+    low_p = np.clip(fc_prophet["yhat_lower"].values, 0.0, None)
+    up_p = np.clip(fc_prophet["yhat_upper"].values, 0.0, None)
+    low_p = np.minimum(low_p, pred_p)
+    up_p = np.maximum(up_p, pred_p)
+
+    test_df["pred_prophet"] = pred_p
+    test_df["pred_prophet_lower"] = low_p
+    test_df["pred_prophet_upper"] = up_p
 
     # ------------------------------------------------------------------ #
     # Model 3: Seasonal-Naive (t - 7 days)                               #
@@ -180,20 +210,22 @@ def run_forecast_evaluation(
     naive_forecaster.fit(train_df, target_col="power_kw", time_col="timestamp")
     fc_naive = naive_forecaster.predict(test_df["timestamp"])
     test_df["pred_naive"] = fc_naive["predicted_power_kw"].values
+    test_df["pred_naive_lower"] = None
+    test_df["pred_naive_upper"] = None
 
     # ------------------------------------------------------------------ #
     # Metric Aggregation                                                 #
     # ------------------------------------------------------------------ #
     model_columns = [
-        ("Ridge Regression", "pred_ridge"),
-        ("Meta Prophet", "pred_prophet"),
-        ("Seasonal-Naive", "pred_naive"),
+        ("Ridge Regression", "pred_ridge", "pred_ridge_lower", "pred_ridge_upper"),
+        ("Meta Prophet", "pred_prophet", "pred_prophet_lower", "pred_prophet_upper"),
+        ("Seasonal-Naive", "pred_naive", "pred_naive_lower", "pred_naive_upper"),
     ]
 
     day_types = ["overall", "weekday", "weekend", "holiday"]
     results_by_model: dict[str, dict[str, Any]] = {}
 
-    for model_name, pred_col in model_columns:
+    for model_name, pred_col, low_col, up_col in model_columns:
         model_metrics: dict[str, Any] = {}
         for dt in day_types:
             if dt == "overall":
@@ -206,13 +238,26 @@ def run_forecast_evaluation(
                     "mae_kw": None,
                     "mape_pct": None,
                     "rmse_kw": None,
+                    "coverage_pct": None,
                     "count": 0,
                     "note": f"0 {dt} days in test window",
                 }
             else:
+                y_low = (
+                    sub[low_col].values
+                    if low_col and low_col in sub.columns and sub[low_col].iloc[0] is not None
+                    else None
+                )
+                y_up = (
+                    sub[up_col].values
+                    if up_col and up_col in sub.columns and sub[up_col].iloc[0] is not None
+                    else None
+                )
                 model_metrics[dt] = compute_metrics(
                     y_true=sub["power_kw"].values,
                     y_pred=sub[pred_col].values,
+                    y_lower=y_low,
+                    y_upper=y_up,
                 )
         results_by_model[model_name] = model_metrics
 
@@ -220,11 +265,14 @@ def run_forecast_evaluation(
     comparison_table = []
     for model_name in results_by_model:
         m = results_by_model[model_name]
+        cov_val = m["overall"].get("coverage_pct")
         row = {
             "Model": model_name,
             "Overall MAPE (%)": m["overall"]["mape_pct"],
             "Overall MAE (kW)": m["overall"]["mae_kw"],
             "Overall RMSE (kW)": m["overall"]["rmse_kw"],
+            "80% Interval Coverage (%)": f"{cov_val:.1f}%" if cov_val is not None else "N/A",
+            "Interval Coverage (%)": f"{cov_val:.1f}%" if cov_val is not None else "N/A",
             "Weekday MAPE (%)": m["weekday"]["mape_pct"] if m["weekday"]["count"] > 0 else None,
             "Weekend MAPE (%)": m["weekend"]["mape_pct"] if m["weekend"]["count"] > 0 else None,
             "Holiday MAPE (%)": m["holiday"]["mape_pct"] if m["holiday"]["count"] > 0 else "N/A (0 days)",
