@@ -1,0 +1,525 @@
+{
+  "metadata": {
+    "evaluation_title": "Nivara Proof Layer & Model Verification Harness",
+    "evaluation_timestamp": "2026-11-09T11:41:08.752781",
+    "random_seed": 42,
+    "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+    "tolerance_minutes": 60,
+    "disclaimer": "Evaluated on synthetic data with injected faults; validates the pipeline, not real-world accuracy."
+  },
+  "anomaly_evaluation": {
+    "tolerance_minutes": 60,
+    "total_ground_truth_events": 5,
+    "results": [
+      {
+        "model_name": "Layered Engine (Full)",
+        "total_alerts": 549,
+        "true_positives": 4,
+        "false_positives": 545,
+        "false_negatives": 1,
+        "precision": 0.0073,
+        "recall": 0.8,
+        "f1_score": 0.0144,
+        "mean_delay_minutes": 276.25,
+        "median_delay_minutes": 270.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 480.0
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 360.0
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 85.0
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 180.0
+          }
+        }
+      },
+      {
+        "model_name": "Ablation: Statistical Ridge",
+        "total_alerts": 100,
+        "true_positives": 0,
+        "false_positives": 100,
+        "false_negatives": 5,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "mean_delay_minutes": 0.0,
+        "median_delay_minutes": 0.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      },
+      {
+        "model_name": "Ablation: Unoccupied Rule",
+        "total_alerts": 2,
+        "true_positives": 2,
+        "false_positives": 0,
+        "false_negatives": 3,
+        "precision": 1.0,
+        "recall": 0.4,
+        "f1_score": 0.5714,
+        "mean_delay_minutes": 420.0,
+        "median_delay_minutes": 420.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 480.0
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 360.0
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      },
+      {
+        "model_name": "Ablation: Hydraulic Dry-Run Rule",
+        "total_alerts": 1,
+        "true_positives": 1,
+        "false_positives": 0,
+        "false_negatives": 4,
+        "precision": 1.0,
+        "recall": 0.2,
+        "f1_score": 0.3333,
+        "mean_delay_minutes": 85.0,
+        "median_delay_minutes": 85.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 85.0
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      },
+      {
+        "model_name": "Ablation: Sensor Dropout Rule",
+        "total_alerts": 1,
+        "true_positives": 1,
+        "false_positives": 0,
+        "false_negatives": 4,
+        "precision": 1.0,
+        "recall": 0.2,
+        "f1_score": 0.3333,
+        "mean_delay_minutes": 180.0,
+        "median_delay_minutes": 180.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 180.0
+          }
+        }
+      },
+      {
+        "model_name": "Ablation: Isolation Forest ML",
+        "total_alerts": 445,
+        "true_positives": 0,
+        "false_positives": 445,
+        "false_negatives": 5,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "mean_delay_minutes": 0.0,
+        "median_delay_minutes": 0.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      },
+      {
+        "model_name": "Baseline 1: Static Threshold",
+        "total_alerts": 1034,
+        "true_positives": 1,
+        "false_positives": 1033,
+        "false_negatives": 4,
+        "precision": 0.001,
+        "recall": 0.2,
+        "f1_score": 0.0019,
+        "mean_delay_minutes": 65.0,
+        "median_delay_minutes": 65.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 65.0
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      },
+      {
+        "model_name": "Baseline 2: Rolling Z-Score",
+        "total_alerts": 178,
+        "true_positives": 1,
+        "false_positives": 177,
+        "false_negatives": 4,
+        "precision": 0.0056,
+        "recall": 0.2,
+        "f1_score": 0.0109,
+        "mean_delay_minutes": 135.0,
+        "median_delay_minutes": 135.0,
+        "per_fault_type": {
+          "duplicate_reading": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "hvac_left_on": {
+            "total_events": 1,
+            "detected": 1,
+            "missed": 0,
+            "recall": 1.0,
+            "mean_delay_minutes": 135.0
+          },
+          "lights_left_on": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "pump_no_flow": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          },
+          "sensor_dropout": {
+            "total_events": 1,
+            "detected": 0,
+            "missed": 1,
+            "recall": 0.0,
+            "mean_delay_minutes": null
+          }
+        }
+      }
+    ]
+  },
+  "forecast_evaluation": {
+    "split_timestamp": "2025-09-22 00:00:00",
+    "train_points": 6048,
+    "test_points": 2016,
+    "models": {
+      "Ridge Regression": {
+        "overall": {
+          "mae_kw": 9.35,
+          "mape_pct": 40.09,
+          "rmse_kw": 11.84,
+          "count": 2016
+        },
+        "weekday": {
+          "mae_kw": 7.74,
+          "mape_pct": 27.2,
+          "rmse_kw": 9.66,
+          "count": 1440
+        },
+        "weekend": {
+          "mae_kw": 13.36,
+          "mape_pct": 72.33,
+          "rmse_kw": 16.03,
+          "count": 576
+        },
+        "holiday": {
+          "mae_kw": null,
+          "mape_pct": null,
+          "rmse_kw": null,
+          "count": 0,
+          "note": "0 holiday days in test window"
+        }
+      },
+      "Meta Prophet": {
+        "overall": {
+          "mae_kw": 10.59,
+          "mape_pct": 40.47,
+          "rmse_kw": 13.92,
+          "count": 2016
+        },
+        "weekday": {
+          "mae_kw": 9.58,
+          "mape_pct": 30.01,
+          "rmse_kw": 13.39,
+          "count": 1440
+        },
+        "weekend": {
+          "mae_kw": 13.12,
+          "mape_pct": 66.64,
+          "rmse_kw": 15.15,
+          "count": 576
+        },
+        "holiday": {
+          "mae_kw": null,
+          "mape_pct": null,
+          "rmse_kw": null,
+          "count": 0,
+          "note": "0 holiday days in test window"
+        }
+      },
+      "Seasonal-Naive": {
+        "overall": {
+          "mae_kw": 4.69,
+          "mape_pct": 8.27,
+          "rmse_kw": 14.53,
+          "count": 2016
+        },
+        "weekday": {
+          "mae_kw": 6.18,
+          "mape_pct": 9.75,
+          "rmse_kw": 17.15,
+          "count": 1440
+        },
+        "weekend": {
+          "mae_kw": 0.98,
+          "mape_pct": 4.56,
+          "rmse_kw": 1.97,
+          "count": 576
+        },
+        "holiday": {
+          "mae_kw": null,
+          "mape_pct": null,
+          "rmse_kw": null,
+          "count": 0,
+          "note": "0 holiday days in test window"
+        }
+      }
+    },
+    "comparison_table": [
+      {
+        "Model": "Ridge Regression",
+        "Overall MAPE (%)": 40.09,
+        "Overall MAE (kW)": 9.35,
+        "Overall RMSE (kW)": 11.84,
+        "Weekday MAPE (%)": 27.2,
+        "Weekend MAPE (%)": 72.33,
+        "Holiday MAPE (%)": "N/A (0 days)"
+      },
+      {
+        "Model": "Meta Prophet",
+        "Overall MAPE (%)": 40.47,
+        "Overall MAE (kW)": 10.59,
+        "Overall RMSE (kW)": 13.92,
+        "Weekday MAPE (%)": 30.01,
+        "Weekend MAPE (%)": 66.64,
+        "Holiday MAPE (%)": "N/A (0 days)"
+      },
+      {
+        "Model": "Seasonal-Naive",
+        "Overall MAPE (%)": 8.27,
+        "Overall MAE (kW)": 4.69,
+        "Overall RMSE (kW)": 14.53,
+        "Weekday MAPE (%)": 9.75,
+        "Weekend MAPE (%)": 4.56,
+        "Holiday MAPE (%)": "N/A (0 days)"
+      }
+    ]
+  }
+}

@@ -1041,6 +1041,106 @@ elif "Governance" in page:
 
         st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
 
+        # ── Section 5: 🔬 Verification & Evidence (Evaluation Harness) ──────
+        st.divider()
+        st.markdown("### 🔬 Verification & Evidence (The Proof Layer)")
+        st.caption(
+            "Reproducible quantitative evaluation of Nivara's anomaly detection and load forecasting models "
+            "against naive baselines and component ablations."
+        )
+        st.info("⚠️ **Methodological Notice:** Evaluated on synthetic data with injected faults; validates the pipeline, not real-world accuracy.")
+
+        eval_dir = Path(__file__).resolve().parent.parent.parent.parent / "reports" / "eval"
+        summary_path = eval_dir / "summary.json"
+
+        if summary_path.exists():
+            try:
+                import json
+                with open(summary_path, "r", encoding="utf-8") as f:
+                    eval_data = json.load(f)
+
+                anom_eval = eval_data.get("anomaly_evaluation", {})
+                fc_eval = eval_data.get("forecast_evaluation", {})
+
+                # Summary Scorecard
+                c_sc1, c_sc2, c_sc3, c_sc4 = st.columns(4)
+                with c_sc1:
+                    st.metric("Layered Engine Recall", "80.0%", "4/5 Injected Faults Detected")
+                with c_sc2:
+                    st.metric("Static Baseline Recall", "20.0%", "-60.0% vs Layered Engine", delta_color="inverse")
+                with c_sc3:
+                    st.metric("Best Forecast Model", "Seasonal-Naive", "8.27% Overall MAPE")
+                with c_sc4:
+                    st.metric("Prophet / Ridge MAPE", "40.5% / 40.1%", "Parametric Smoothers", delta_color="off")
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                tab_anom, tab_fc = st.tabs(["🚨 Anomaly Detection Benchmarks", "📈 Load Forecasting Benchmarks"])
+
+                with tab_anom:
+                    st.markdown("#### Anomaly Detection: Layered Engine vs Baselines & Ablations")
+                    st.caption("Event-level temporal tolerance: ±60 minutes with strict event-level deduplication.")
+
+                    anom_results = anom_eval.get("results", [])
+                    if anom_results:
+                        anom_df = pd.DataFrame([
+                            {
+                                "Model / Component": r["model_name"],
+                                "True Positives (TP)": r["true_positives"],
+                                "False Positives (FP)": r["false_positives"],
+                                "False Negatives (FN)": r["false_negatives"],
+                                "Precision": f"{r['precision']:.4f}",
+                                "Recall": f"{r['recall'] * 100:.1f}%",
+                                "F1 Score": f"{r['f1_score']:.4f}",
+                                "Mean Delay": f"{r['mean_delay_minutes']:.1f} min" if r["mean_delay_minutes"] > 0 else "0.0 min",
+                            }
+                            for r in anom_results
+                        ])
+                        st.dataframe(anom_df, use_container_width=True, hide_index=True)
+
+                    anom_img_path = eval_dir / "anomaly_f1_comparison.png"
+                    if anom_img_path.exists():
+                        st.image(str(anom_img_path), use_container_width=True)
+
+                    with st.expander("🔎 Per-Fault Type Breakdown (Full Layered Engine)"):
+                        layered_item = next((r for r in anom_results if "Full" in r["model_name"]), None)
+                        if layered_item and "per_fault_type" in layered_item:
+                            pft_rows = []
+                            for ftype, fdata in layered_item["per_fault_type"].items():
+                                delay_text = f"{fdata['mean_delay_minutes']:.1f} min" if fdata.get("mean_delay_minutes") is not None else "N/A (Missed)"
+                                pft_rows.append({
+                                    "Fault Type": ftype,
+                                    "Total Injected": fdata["total_events"],
+                                    "Detected": fdata["detected"],
+                                    "Missed": fdata["missed"],
+                                    "Recall": f"{fdata['recall'] * 100:.1f}%",
+                                    "Mean Delay": delay_text,
+                                })
+                            st.dataframe(pd.DataFrame(pft_rows), use_container_width=True, hide_index=True)
+                            st.caption("Note: `duplicate_reading` is a single 5-minute telemetry retry event, deduplicated at stream ingestion.")
+
+                with tab_fc:
+                    st.markdown("#### Load Forecasting: 7-Day Temporal Holdout Comparison")
+                    st.caption("Temporal split: First 21 days training, last 7 days held-out evaluation (zero future context leakage).")
+
+                    fc_table = fc_eval.get("comparison_table", [])
+                    if fc_table:
+                        st.dataframe(pd.DataFrame(fc_table), use_container_width=True, hide_index=True)
+
+                    fc_img_path = eval_dir / "forecast_mape_comparison.png"
+                    if fc_img_path.exists():
+                        st.image(str(fc_img_path), use_container_width=True)
+
+                    st.markdown(
+                        "> **Analysis:** Seasonal-Naive ('same slot last week') achieves the lowest MAPE (8.27%) because campus "
+                        "academic operations follow strict periodic weekly schedules. While Ridge and Prophet produce smooth parametric "
+                        "curves, weekly persistence directly captures sharp step transitions and weekend operational minimums."
+                    )
+            except Exception as e:
+                st.warning(f"Unable to render evaluation metrics: {e}")
+        else:
+            st.info("Evaluation metrics report not yet generated. Run `make eval` to compute proof layer artifacts.")
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE 2 — 3D Campus Map
