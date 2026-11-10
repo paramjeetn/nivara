@@ -1621,18 +1621,56 @@ elif chosen_dest == "Assets":
     st.stop()
 
 elif chosen_dest == "Energy":
-    sub_col1, _ = st.columns([4, 2])
-    with sub_col1:
-        energy_view = st.segmented_control(
-            "Energy Module",
-            ["🤖  AI Forecasting", "🔋  Microgrid Dispatch", "💸  Department Billing"],
-            default=st.session_state.get("energy_subview_choice", "🤖  AI Forecasting"),
-            key="energy_subview_choice",
-        )
-    page = energy_view or "🤖  AI Forecasting"
+    from campus_energy.ui.views.energy import render_energy
+
+    p_energy_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_energy_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_energy_tariff = None
+
+    notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+    render_energy(
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=p_energy_ledger,
+        tariff=p_energy_tariff,
+        current_user=current_user,
+        notif_router=notif_router,
+    )
+    st.stop()
 
 elif chosen_dest == "Water":
-    page = "💧  Water Intelligence"
+    from campus_energy.ui.views.water import render_water
+
+    p_water_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_water_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_water_tariff = None
+
+    notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+    render_water(
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=p_water_ledger,
+        tariff=p_water_tariff,
+        notif_router=notif_router,
+        current_user=current_user,
+    )
+    st.stop()
 
 elif chosen_dest == "Reports":
     sub_col1, _ = st.columns([3, 3])
@@ -2763,366 +2801,32 @@ try:
 
 
     # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 3 — AI Forecasting & Scenarios
+    # PAGE 3 — Energy Operations (Consolidated Step UX-7)
     # ─────────────────────────────────────────────────────────────────────────────
-    elif "Forecasting" in page:
-        import campus_energy.analytics.forecasting as fc_mod
-        importlib.reload(fc_mod)
-        from campus_energy.analytics.forecasting import generate_24h_forecast
-        import campus_energy.analytics.forecasting_prophet as fc_prophet_mod
-        importlib.reload(fc_prophet_mod)
-        from campus_energy.analytics.forecasting_prophet import generate_prophet_forecast
+    elif "Forecasting" in page or "Energy" in page:
+        from campus_energy.ui.views.energy import render_energy
 
-        page_heading(
-            title="AI Forecasting & Scenario Simulator",
-            subtitle="Ridge regression baseline trained on 21 days of telemetry. Simulate weather and policy changes.",
-            badge="Predictive Models",
+        p_energy_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+        try:
+            from campus_energy.tariffs import load_tariff
+            p_energy_tariff = load_tariff("odisha_ht_commercial")
+        except Exception:
+            p_energy_tariff = None
+
+        notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+        render_energy(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_energy_ledger,
+            tariff=p_energy_tariff,
+            current_user=current_user,
+            notif_router=notif_router,
         )
-
-        render_assumptions_expander([
-            "tariff.electricity_commercial",
-            "emissions.grid_factor",
-            "comfort.optimal_setpoint_c",
-            "comfort.ambient_fallback_c",
-        ])
-
-        col_sliders, col_chart = st.columns([1, 3])
-
-        with col_sliders:
-            st.subheader("Scenario Controls")
-            temp_offset = st.slider("🌡️ Temperature Offset (°C)", -5.0, 5.0, 0.0, 0.5,
-                                    help="Simulate a heatwave (+) or cold front (-)")
-            ac_reduction = st.slider("❄️ AC Shutdown after 6 PM (%)", 0, 40, 0, 5,
-                                     help="Policy scenario: enforce HVAC off-peak cutback")
-            st.markdown("**🌞 Scenario Controls (Extended)**")
-            occupancy_reduction = st.slider(
-                "👥 Occupancy Reduction (%)",
-                min_value=0, max_value=80, value=0, step=5,
-                help="Simulate holiday/exam period with fewer occupants. 60% of load is occupancy-driven."
-            )
-            solar_kwp = st.slider(
-                "☀️ Solar PV Addition (kWp)",
-                min_value=0, max_value=500, value=0, step=25,
-                help="Add rooftop solar. Grid import reduced during daylight hours (6–18)."
-            )
-            led_upgrade = st.checkbox(
-                "💡 LED Lighting Upgrade",
-                value=False,
-                help="Replace fluorescent lighting with LED (saves ~40% of lighting load, ~9% of total)."
-            )
-            st.info("🔁 Sliders update the forecast automatically via cached compute.")
-
-        with col_chart:
-            with st.spinner("Running 24-hour ML forecast…"):
-                fcast = cached_generate_24h_forecast(
-                    tel, ctx, assets,
-                    temp_offset=temp_offset,
-                    ac_policy_reduction_pct=ac_reduction,
-                    occupancy_reduction_pct=occupancy_reduction,
-                    solar_pv_kwp=solar_kwp,
-                    led_upgrade=led_upgrade,
-                )
-
-            if fcast.empty:
-                st.warning("Not enough data to build a forecast.")
-            else:
-                campus_fc = fcast.groupby("timestamp")[
-                    ["predicted_power_kw", "lower_bound", "upper_bound", "scenario_power_kw"]
-                ].sum().reset_index()
-
-                fig = go.Figure()
-
-                # Prediction intervals as a shaded confidence ribbon (fill='tonexty' in Plotly)
-                fig.add_trace(go.Scatter(
-                    x=campus_fc["timestamp"],
-                    y=campus_fc["lower_bound"],
-                    mode="lines",
-                    line=dict(width=0),
-                    showlegend=False,
-                    hoverinfo="skip",
-                ))
-                fig.add_trace(go.Scatter(
-                    x=campus_fc["timestamp"],
-                    y=campus_fc["upper_bound"],
-                    mode="lines",
-                    line=dict(width=0),
-                    fill="tonexty",
-                    fillcolor="rgba(56,189,248,0.15)",
-                    name="Ridge 80% CI",
-                    showlegend=True,
-                ))
-                fig.add_trace(go.Scatter(
-                    x=campus_fc["timestamp"], y=campus_fc["predicted_power_kw"],
-                    mode="lines", name="Ridge Baseline Forecast",
-                    line=dict(color=COLORS["primary"], width=2.5),
-                ))
-                scenario_active = (
-                    ac_reduction > 0
-                    or occupancy_reduction > 0
-                    or solar_kwp > 0
-                    or led_upgrade
-                )
-                if scenario_active:
-                    trace_name = (
-                        f"AC Policy (−{ac_reduction}%)"
-                        if (ac_reduction > 0 and occupancy_reduction == 0 and solar_kwp == 0 and not led_upgrade)
-                        else "Scenario Load"
-                    )
-                    fig.add_trace(go.Scatter(
-                        x=campus_fc["timestamp"], y=campus_fc["scenario_power_kw"],
-                        mode="lines", name=trace_name,
-                        line=dict(color=COLORS["accent"], width=2, dash="dash"),
-                    ))
-
-                fig.update_layout(
-                    title="24-Hour Campus Load Forecast",
-                    xaxis_title="Time", yaxis_title="Campus Power (kW)",
-                    paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-                    font_color="#94a3b8", hovermode="x unified",
-                    legend=dict(bgcolor="#1e293b"),
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-                # Scenario Impact Summary
-                from campus_energy.analytics.forecasting import compute_forecast_savings_range
-                tariff_comm = float(assumptions.get_value("tariff.electricity_commercial"))
-                grid_factor = float(assumptions.get_value("emissions.grid_factor"))
-                scen_savings = compute_forecast_savings_range(
-                    fcast, cost_per_kwh=tariff_comm, grid_emission_factor=grid_factor
-                )
-
-                st.markdown("#### ⚡ Scenario Impact Summary")
-                col_sc1, col_sc2, col_sc3 = st.columns(3)
-                with col_sc1:
-                    st.metric(
-                        "Grid Import Reduction",
-                        f"{scen_savings['kwh']['expected']:,.1f} kWh",
-                        delta=f"[{scen_savings['kwh']['low']:,.1f} – {scen_savings['kwh']['high']:,.1f} kWh]",
-                        delta_color="normal",
-                    )
-                with col_sc2:
-                    st.metric(
-                        "Cost Saving",
-                        f"Expected: ₹{scen_savings['cost_inr']['expected']:,.0f}",
-                        delta=f"Range: ₹{scen_savings['cost_inr']['low']:,.0f} – ₹{scen_savings['cost_inr']['high']:,.0f}",
-                        delta_color="normal",
-                    )
-                with col_sc3:
-                    st.metric(
-                        "CO₂ Saved",
-                        f"{scen_savings['co2_kg']['expected']:,.1f} kg",
-                        delta=f"[{scen_savings['co2_kg']['low']:,.1f} – {scen_savings['co2_kg']['high']:,.1f} kg]",
-                        delta_color="normal",
-                    )
-
-                st.caption("⚠️ Decision-support estimate, not an official measurement.")
-
-                if ac_reduction > 0:
-                    st.success(
-                        f"💡 **Policy Impact:** This AC shutdown policy would save "
-                        f"**{scen_savings['kwh']['expected']:.1f} kWh** tomorrow "
-                        f"(Range: {scen_savings['kwh']['low']:.1f} – {scen_savings['kwh']['high']:.1f} kWh · "
-                        f"Expected: ₹{scen_savings['cost_inr']['expected']:,.0f} · {scen_savings['co2_kg']['expected']:.1f} kg CO₂).\n\n"
-                        f"⚠️ Decision-support estimate, not an official measurement."
-                    )
-
-                # ── Prophet vs. Ridge — Model Comparison ──
-                st.divider()
-                st.subheader("🔮 Prophet vs. Ridge — Model Comparison")
-
-                with st.spinner("Running Prophet model (this may take ~15s)…"):
-                    prophet_fc, prophet_mape = cached_generate_prophet_forecast(tel, assets)
-
-                if prophet_fc is None or prophet_fc.empty:
-                    st.warning("Prophet model could not run on this dataset.")
-                else:
-                    # Compute Ridge MAPE inline over the held-out last 24h of campus total meter power
-                    ridge_mape = None
-                    try:
-                        meters_list = assets[assets["asset_type"] == "meter"]["asset_id"].tolist()
-                        m_tel = tel[tel["asset_id"].isin(meters_list)].copy()
-                        m_tel["timestamp"] = pd.to_datetime(m_tel["timestamp"])
-                        if m_tel["timestamp"].dt.tz is not None:
-                            m_tel["timestamp"] = m_tel["timestamp"].dt.tz_localize(None)
-
-                        campus_tot = (
-                            m_tel.groupby("timestamp")["power_kw"]
-                            .sum()
-                            .reset_index()
-                            .sort_values("timestamp")
-                            .reset_index(drop=True)
-                        )
-
-                        latest_ts_pt = campus_tot["timestamp"].max()
-                        eval_cutoff_pt = latest_ts_pt - timedelta(days=1)
-                        train_start_pt = latest_ts_pt - timedelta(days=21)
-
-                        train_ridge_df = campus_tot[
-                            (campus_tot["timestamp"] >= train_start_pt)
-                            & (campus_tot["timestamp"] <= eval_cutoff_pt)
-                        ].copy()
-                        test_ridge_df = campus_tot[campus_tot["timestamp"] > eval_cutoff_pt].copy()
-
-                        if len(train_ridge_df) >= 50 and len(test_ridge_df) >= 10:
-                            train_ridge_df["hour"] = train_ridge_df["timestamp"].dt.hour
-                            train_ridge_df["day_of_week"] = train_ridge_df["timestamp"].dt.dayofweek
-                            test_ridge_df["hour"] = test_ridge_df["timestamp"].dt.hour
-                            test_ridge_df["day_of_week"] = test_ridge_df["timestamp"].dt.dayofweek
-
-                            from campus_energy.analytics.baseline import ExpectedConsumptionModel
-                            ridge_model_eval = ExpectedConsumptionModel()
-                            ridge_model_eval.fit(train_ridge_df, lower_quantile=10.0, upper_quantile=90.0)
-                            ridge_preds_eval, ridge_low_eval, ridge_up_eval = ridge_model_eval.predict(
-                                test_ridge_df, return_intervals=True, lower_quantile=10.0, upper_quantile=90.0
-                            )
-                            actual_eval = test_ridge_df["power_kw"].values
-
-                            eval_mask = actual_eval > 0.01
-                            if eval_mask.sum() > 0:
-                                ridge_mape = float(
-                                    np.mean(
-                                        np.abs(
-                                            (actual_eval[eval_mask] - ridge_preds_eval[eval_mask])
-                                            / actual_eval[eval_mask]
-                                        )
-                                    )
-                                )
-                            ridge_coverage = float(
-                                np.mean(
-                                    (actual_eval >= ridge_low_eval.values)
-                                    & (actual_eval <= ridge_up_eval.values)
-                                )
-                                * 100.0
-                            )
-                    except Exception:
-                        ridge_mape = None
-                        ridge_coverage = None
-
-                    prophet_coverage = None
-                    try:
-                        eval_summary_p = Path("reports/eval/summary.json")
-                        if eval_summary_p.exists():
-                            with open(eval_summary_p, "r", encoding="utf-8") as f:
-                                smry = json.load(f)
-                            prophet_coverage = smry.get("forecast_evaluation", {}).get("models", {}).get("Meta Prophet", {}).get("overall", {}).get("coverage_pct")
-                    except Exception:
-                        pass
-                    if prophet_coverage is None:
-                        prophet_coverage = 83.3
-
-                    # Show MAPE and empirical coverage for each model side by side
-                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                    with col_m1:
-                        st.metric(
-                            "Prophet 24h MAPE",
-                            f"{prophet_mape * 100:.1f}%" if prophet_mape is not None else "N/A",
-                        )
-                    with col_m2:
-                        st.metric(
-                            "Prophet 80% Coverage",
-                            f"{prophet_coverage:.1f}%" if prophet_coverage is not None else "N/A",
-                        )
-                    with col_m3:
-                        st.metric(
-                            "Ridge 24h MAPE",
-                            f"{ridge_mape * 100:.1f}%" if ridge_mape is not None else "N/A",
-                        )
-                    with col_m4:
-                        st.metric(
-                            "Ridge 80% Coverage",
-                            f"{ridge_coverage:.1f}%" if ridge_coverage is not None else "N/A",
-                        )
-
-                    st.caption(
-                        "⚠️ Decision-support estimate, not an official measurement. "
-                        "Empirical interval coverage measures actual load falling within [yhat_lower, yhat_upper]."
-                    )
-
-                    # Comparison Plotly chart with shaded prediction ribbons (fill='tonexty')
-                    fig_cmp = go.Figure()
-
-                    # Ridge 80% CI ribbon (blue)
-                    fig_cmp.add_trace(go.Scatter(
-                        x=campus_fc["timestamp"],
-                        y=campus_fc["lower_bound"],
-                        mode="lines",
-                        line=dict(width=0),
-                        showlegend=False,
-                        hoverinfo="skip",
-                    ))
-                    fig_cmp.add_trace(go.Scatter(
-                        x=campus_fc["timestamp"],
-                        y=campus_fc["upper_bound"],
-                        mode="lines",
-                        line=dict(width=0),
-                        fill="tonexty",
-                        fillcolor="rgba(56, 189, 248, 0.12)",
-                        name="Ridge 80% CI",
-                        showlegend=True,
-                    ))
-
-                    # Prophet 80% CI ribbon (purple)
-                    fig_cmp.add_trace(go.Scatter(
-                        x=prophet_fc["timestamp"],
-                        y=prophet_fc["prophet_lower_kw"],
-                        mode="lines",
-                        line=dict(width=0),
-                        showlegend=False,
-                        hoverinfo="skip",
-                    ))
-                    fig_cmp.add_trace(go.Scatter(
-                        x=prophet_fc["timestamp"],
-                        y=prophet_fc["prophet_upper_kw"],
-                        mode="lines",
-                        line=dict(width=0),
-                        fill="tonexty",
-                        fillcolor="rgba(139, 92, 246, 0.16)",
-                        name="Prophet 80% CI",
-                        showlegend=True,
-                    ))
-
-                    # Ridge forecast line (blue)
-                    fig_cmp.add_trace(go.Scatter(
-                        x=campus_fc["timestamp"],
-                        y=campus_fc["predicted_power_kw"],
-                        mode="lines",
-                        name="Ridge Forecast",
-                        line=dict(color=COLORS.get("primary", "#38bdf8"), width=2.5),
-                    ))
-
-                    # Prophet forecast line (purple)
-                    fig_cmp.add_trace(go.Scatter(
-                        x=prophet_fc["timestamp"],
-                        y=prophet_fc["prophet_predicted_kw"],
-                        mode="lines",
-                        name="Prophet Forecast",
-                        line=dict(color=COLORS.get("purple", "#8b5cf6"), width=2.5),
-                    ))
-
-                    fig_cmp.update_layout(
-                        title="Prophet vs. Ridge — Campus Load Forecast",
-                        xaxis_title="Time",
-                        yaxis_title="Campus Power (kW)",
-                        paper_bgcolor="#0f172a",
-                        plot_bgcolor="#0f172a",
-                        font_color="#94a3b8",
-                        hovermode="x unified",
-                        legend=dict(bgcolor="#1e293b"),
-                    )
-
-                    st.plotly_chart(fig_cmp, use_container_width=True)
-
-        # ── Per-building forecast breakdown ──
-        st.divider()
-        st.subheader("Per-Building Forecast Breakdown")
-        if not fcast.empty:
-            per_bld = fcast.groupby("asset_id")["predicted_power_kw"].agg(["mean", "max"]).reset_index()
-            per_bld.columns = ["Meter ID", "Avg Predicted (kW)", "Peak Predicted (kW)"]
-            per_bld = per_bld.sort_values("Peak Predicted (kW)", ascending=False)
-            st.dataframe(
-                per_bld.style.background_gradient(subset=["Peak Predicted (kW)"], cmap="YlOrRd"),
-                use_container_width=True, hide_index=True,
-            )
 
 
     # ─────────────────────────────────────────────────────────────────────────────
@@ -3149,490 +2853,42 @@ try:
         )
 
     # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 5 — Water Intelligence
+    # PAGE 5 — Water Resource Intelligence (Consolidated Step UX-7)
     # ─────────────────────────────────────────────────────────────────────────────
     elif "Water" in page:
-        from campus_energy.simulator.water import analyze_water_data
+        from campus_energy.ui.views.water import render_water
 
-        page_heading(
-            title="Water Resource Intelligence — HydroSense",
-            subtitle=f"Building-level Water Telemetry, Minimum Night Flow (MNF) Baseline & Leak Anomaly Detection · Facility: {selected_facility_label}",
-            badge="HydroSense v1.2",
-        )
+        p_water_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+        try:
+            from campus_energy.tariffs import load_tariff
+            p_water_tariff = load_tariff("odisha_ht_commercial")
+        except Exception:
+            p_water_tariff = None
 
-        with st.spinner("Analyzing water telemetry & pipe network acoustics…"):
-            water_df = load_water_data(str(facility_meta["data_dir"]), assets)
-            water_analytics = analyze_water_data(water_df)
+        notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-        kpis = water_analytics["kpis"]
-        daily = water_analytics["daily_trend"]
-        bld_breakdown = water_analytics["building_breakdown"]
-        diurnal = water_analytics["diurnal_curve"]
-        leaks = water_analytics["leak_events"]
-
-        # ── Top 5 KPI Cards ──
-        c1, c2, c3, c4, c5 = st.columns(5)
-        c1.metric(
-            "💧 Total Water",
-            f"{kpis['total_water_kl']:,.1f} kL",
-            delta=f"Avg {kpis['daily_avg_kl']:.1f} kL/day",
-            delta_color="off",
-        )
-        c2.metric(
-            "💰 Water Cost",
-            f"₹{kpis['water_cost_inr']:,.0f}",
-            delta="Tariff ₹25 / kL",
-            delta_color="off",
-        )
-        c3.metric(
-            "🚨 Active Leaks",
-            f"{kpis['active_leaks']}",
-            delta="Immediate action required" if kpis["active_leaks"] > 0 else "Normal network",
-            delta_color="inverse" if kpis["active_leaks"] > 0 else "normal",
-        )
-        c4.metric(
-            "⚠️ Avoidable Loss",
-            f"{kpis['avoidable_loss_kl']:,.1f} kL",
-            delta=f"-₹{kpis['avoidable_loss_inr']:,.0f} loss",
-            delta_color="inverse",
-        )
-        c5.metric(
-            "🌙 Night Leak LPM",
-            f"{kpis['night_leak_lpm']:.1f} L/min",
-            delta="MNF baseline exceeded" if kpis["night_leak_lpm"] > 0 else "Nominal MNF flow",
-            delta_color="inverse" if kpis["night_leak_lpm"] > 0 else "normal",
-        )
-
-        st.divider()
-
-        # ── Charts Row: Daily Consumption & Building Water Share ──
-        c_left, c_right = st.columns([2, 1])
-
-        with c_left:
-            st.subheader("Daily Water Consumption Trend")
-            fig_daily = go.Figure()
-            fig_daily.add_trace(go.Bar(
-                x=daily["date"],
-                y=daily["flow_kl"],
-                name="Daily Consumption (kL)",
-                marker_color="#38bdf8",
-                opacity=0.9,
-                hovertemplate="<b>%{x}</b><br>Consumption: %{y:.1f} kL<extra></extra>",
-            ))
-            fig_daily.add_trace(go.Scatter(
-                x=daily["date"],
-                y=daily["rolling_avg_3d"],
-                mode="lines",
-                name="3-Day Moving Avg",
-                line=dict(color="#10b981", width=2.5, dash="dash"),
-                hovertemplate="<b>3-day MA</b>: %{y:.1f} kL<extra></extra>",
-            ))
-            fig_daily.update_layout(
-                paper_bgcolor="#0f172a",
-                plot_bgcolor="#0f172a",
-                font_color="#94a3b8",
-                xaxis=dict(title="Date", gridcolor="#1e293b"),
-                yaxis=dict(title="Volume (kL)", gridcolor="#1e293b"),
-                legend=dict(bgcolor="#1e293b", bordercolor="#334155", orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=10, r=10, t=30, b=10),
-                height=340,
-            )
-            st.plotly_chart(fig_daily, use_container_width=True)
-
-        with c_right:
-            st.subheader("Building Water Share")
-            color_palette = ["#38bdf8", "#818cf8", "#a78bfa", "#f472b6", "#34d399", "#fbbf24", "#f87171"]
-            fig_donut = go.Figure(data=[go.Pie(
-                labels=bld_breakdown["building_id"],
-                values=bld_breakdown["total_kl"],
-                hole=0.55,
-                marker=dict(colors=color_palette[:len(bld_breakdown)]),
-                textinfo="label+percent",
-                hoverinfo="label+value+percent",
-                hovertemplate="<b>%{label}</b><br>%{value:.1f} kL (%{percent})<extra></extra>",
-            )])
-            fig_donut.update_layout(
-                paper_bgcolor="#0f172a",
-                plot_bgcolor="#0f172a",
-                font_color="#94a3b8",
-                showlegend=False,
-                margin=dict(l=10, r=10, t=30, b=10),
-                height=340,
-            )
-            st.plotly_chart(fig_donut, use_container_width=True)
-
-        st.divider()
-
-        # ── Leak Alerts & Anomaly Remediation Queue ──
-        st.subheader("🚨 Leak Alerts & Anomaly Remediation Queue")
-        st.caption("Active flow anomalies detected via statistical deviation from diurnal flow baselines and overnight threshold checks.")
-
-        if not leaks.empty:
-            # Display visual alert cards for urgent leaks
-            for _, leak in leaks.iterrows():
-                sev = str(leak.get("severity", "High")).lower()
-                border_color = "#ef4444" if sev == "critical" else "#f59e0b"
-                badge_bg = "#7f1d1d" if sev == "critical" else "#78350f"
-                badge_text = "#fca5a5" if sev == "critical" else "#fde68a"
-
-                st.markdown(
-                    f"""
-                    <div style="background:#1e293b; border-left: 4px solid {border_color}; border-radius: 8px; padding: 14px 18px; margin-bottom: 12px; border-top: 1px solid #334155; border-right: 1px solid #334155; border-bottom: 1px solid #334155;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
-                            <div>
-                                <span style="font-weight:700; color:#f8fafc; font-size:1.05rem;">🏢 {leak.get('building', 'Building')} — {leak.get('leak_type', 'Water Leak')}</span>
-                                <span style="background:{badge_bg}; color:{badge_text}; font-size:0.75rem; padding: 2px 8px; border-radius: 4px; margin-left: 8px; font-weight:600; text-transform:uppercase;">{leak.get('severity', 'High')}</span>
-                            </div>
-                            <span style="color:#ef4444; font-weight:600; font-size:0.9rem;">Lost: {leak.get('lost_volume', '0 kL')} (₹{leak.get('cost_loss_inr', 0):,.0f})</span>
-                        </div>
-                        <div style="color:#94a3b8; font-size:0.85rem; margin-bottom: 8px;">
-                            ⏱️ <b>Start:</b> {leak.get('start_time', 'N/A')} &nbsp;|&nbsp; ⏳ <b>Duration:</b> {leak.get('duration', 'N/A')} &nbsp;|&nbsp; 🌊 <b>Rate:</b> ~{leak.get('leak_rate_lpm', 0)} L/min &nbsp;|&nbsp; 🏷️ <b>Status:</b> {leak.get('status', 'Open')}
-                        </div>
-                        <div style="background:#0f172a; border-radius: 6px; padding: 8px 12px; color:#cbd5e1; font-size:0.84rem; border: 1px solid #334155;">
-                            🔧 <b>Action Recommendation:</b> {leak.get('recommendation', 'Inspect plumbing fixtures and supply riser.')}
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # Interactive Table
-            display_cols = ["building", "start_time", "duration", "lost_volume", "recommendation"]
-            table_df = leaks[[c for c in display_cols if c in leaks.columns]].copy()
-            table_df.rename(columns={
-                "building": "Building",
-                "start_time": "Leak Start",
-                "duration": "Duration",
-                "lost_volume": "Lost Volume",
-                "recommendation": "Recommended Remediation Action",
-            }, inplace=True)
-            st.dataframe(table_df, use_container_width=True, hide_index=True)
-        else:
-            st.success("✅ No active pipe network leaks detected across campus buildings.")
-
-        st.divider()
-
-        # ── Diurnal Flow Curve (24h average hourly curve) highlighting 1 AM - 5 AM MNF ──
-        st.subheader("⏱️ Campus Diurnal Flow Curve & Minimum Night Flow (MNF)")
-        st.caption(
-            "Standard AWWA M36 / BS EN 12255 methodology: between 01:00 AM and 05:00 AM, human demand drops to near zero. "
-            "Any elevated flow rate during this window directly quantifies concealed physical leakage."
-        )
-
-        fig_diurnal = go.Figure()
-
-        # 1. Add MNF Zone highlight box (1 AM to 5 AM)
-        fig_diurnal.add_vrect(
-            x0=1,
-            x1=5,
-            fillcolor="#ef4444",
-            opacity=0.15,
-            layer="below",
-            line_width=1,
-            line_color="#ef4444",
-            line_dash="dot",
-            annotation_text="MNF Leak Assessment Zone (01:00 - 05:00 AM)",
-            annotation_position="top left",
-            annotation_font_color="#fca5a5",
-            annotation_font_size=11,
-        )
-
-        # 2. Add Average Flow Rate curve
-        fig_diurnal.add_trace(go.Scatter(
-            x=diurnal["hour"],
-            y=diurnal["avg_flow_rate_lpm"],
-            mode="lines+markers",
-            name="Actual Observed Flow (L/min)",
-            line=dict(color="#38bdf8", width=3),
-            marker=dict(size=7, color="#38bdf8"),
-            hovertemplate="<b>Hour %{x}:00</b><br>Observed: %{y:.1f} L/min<extra></extra>",
-        ))
-
-        # 3. Add Normal Baseline curve
-        if "baseline_flow_lpm" in diurnal.columns:
-            fig_diurnal.add_trace(go.Scatter(
-                x=diurnal["hour"],
-                y=diurnal["baseline_flow_lpm"],
-                mode="lines",
-                name="Normal Baseline Flow (L/min)",
-                line=dict(color="#64748b", width=2, dash="dash"),
-                hovertemplate="<b>Hour %{x}:00</b><br>Normal Baseline: %{y:.1f} L/min<extra></extra>",
-            ))
-
-        fig_diurnal.update_layout(
-            paper_bgcolor="#0f172a",
-            plot_bgcolor="#0f172a",
-            font_color="#94a3b8",
-            xaxis=dict(
-                title="Hour of Day (24-Hour Cycle)",
-                tickmode="linear",
-                tick0=0,
-                dtick=1,
-                gridcolor="#1e293b",
-            ),
-            yaxis=dict(
-                title="Average Flow Rate (Liters / Minute)",
-                gridcolor="#1e293b",
-            ),
-            legend=dict(
-                bgcolor="#1e293b",
-                bordercolor="#334155",
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-            ),
-            margin=dict(l=10, r=10, t=30, b=10),
-            height=380,
-        )
-        st.plotly_chart(fig_diurnal, use_container_width=True)
-
-        st.info(
-            f"💡 **MNF Audit Takeaway:** During the 01:00 – 05:00 AM Minimum Night Flow window, the facility recorded an average leak rate of "
-            f"**{kpis['night_leak_lpm']:.1f} L/min**. Resolving the overnight pipe leak will save an estimated **{kpis['avoidable_loss_kl']:.1f} kL** "
-            f"and **₹{kpis['avoidable_loss_inr']:,.0f}** each billing cycle."
+        render_water(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_water_ledger,
+            tariff=p_water_tariff,
+            notif_router=notif_router,
+            current_user=current_user,
         )
 
 
-    # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 6 — Microgrid Dispatch
-    # ─────────────────────────────────────────────────────────────────────────────
-    elif "Microgrid" in page:
-        page_heading(
-            title="Microgrid & Solar Dispatch Simulator",
-            subtitle="Peak shaving via BESS (Battery Energy Storage System) + rooftop solar PV. Simulated dispatch strategy.",
-            badge="DER Optimization",
-        )
-
-        if selected_role_key == "sustainability":
-            st.markdown(
-                """
-                <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>🌱 Sustainability View Focus:</b> Maximizing on-site rooftop solar PV self-consumption, green battery dispatch, and clean energy displacement.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        render_indian_tariff_panel(facility_meta, tel)
-        st.divider()
-
-        # Sidebar controls
-        with st.expander("⚙️ System Parameters", expanded=True):
-            c1, c2, c3 = st.columns(3)
-            solar_peak_kw  = c1.number_input("Solar Array Capacity (kW)", 200, 2000, 800, 100)
-            batt_cap_kwh   = c2.number_input("Battery Capacity (kWh)", 500, 5000, 2000, 500)
-            batt_init_pct  = c3.slider("Battery Initial SOC (%)", 10, 90, 50, 5)
-
-        # Build hourly data from latest day
-        latest_day = tel[tel["timestamp"].dt.date == latest_ts.date()].copy()
-        if latest_day.empty:
-            latest_day = tel.copy()
-
-        campus_hourly = (
-            latest_day.groupby(latest_day["timestamp"].dt.hour)["power_kw"]
-            .sum().reset_index()
-            .rename(columns={"timestamp": "hour", "power_kw": "campus_load_kw"})
-        )
-
-        # Solar bell-curve
-        campus_hourly["solar_gen_kw"] = campus_hourly["hour"].apply(
-            lambda h: max(0, solar_peak_kw * (1 - ((h - 13) / 6) ** 2)) if 6 <= h <= 20 else 0.0
-        )
-
-        # Electricity price profile (peak: 16-21h)
-        tod_peak = float(assumptions.get_value("tariff.tod_peak"))
-        tod_mid = float(assumptions.get_value("tariff.tod_mid"))
-        tod_off_peak = float(assumptions.get_value("tariff.tod_off_peak"))
-        campus_hourly["utility_price_per_kwh"] = campus_hourly["hour"].apply(
-            lambda h: tod_peak if 16 <= h <= 21 else (tod_mid if 9 <= h <= 16 else tod_off_peak)
-        )
-
-        # Battery dispatch logic
-        soc = batt_cap_kwh * batt_init_pct / 100
-        soc_trace, bat_dispatch, grid_import = [], [], []
-
-        for _, row in campus_hourly.iterrows():
-            load   = row["campus_load_kw"]
-            solar  = row["solar_gen_kw"]
-            price  = row["utility_price_per_kwh"]
-            net    = load - solar  # positive = need from grid or battery
-
-            dispatch = 0.0
-            if price >= 20 and soc > batt_cap_kwh * 0.1:
-                # Peak: discharge battery
-                can_discharge = min(soc - batt_cap_kwh * 0.1, 500.0, max(0, net))
-                dispatch = -can_discharge
-            elif solar > load and soc < batt_cap_kwh * 0.95:
-                # Excess solar: charge battery
-                can_charge = min(batt_cap_kwh * 0.95 - soc, solar - load, 600.0)
-                dispatch = can_charge
-
-            soc = max(0, min(batt_cap_kwh, soc + dispatch))
-            grid = max(0.0, load - solar + abs(min(dispatch, 0)))
-
-            soc_trace.append(soc)
-            bat_dispatch.append(dispatch)
-            grid_import.append(grid)
-
-        campus_hourly["battery_dispatch_kw"] = bat_dispatch
-        campus_hourly["grid_import_kw"]      = grid_import
-        campus_hourly["battery_soc_kwh"]     = soc_trace
-        campus_hourly["battery_soc_pct"]     = campus_hourly["battery_soc_kwh"] / batt_cap_kwh * 100
-
-        # ── KPI row ──
-        base_grid   = campus_hourly["campus_load_kw"].sum()
-        opt_grid    = campus_hourly["grid_import_kw"].sum()
-        solar_total = campus_hourly["solar_gen_kw"].sum()
-        peak_base   = campus_hourly["campus_load_kw"].max()
-        peak_opt    = campus_hourly["grid_import_kw"].max()
-        batt_cycles = abs(pd.Series(bat_dispatch).clip(upper=0).sum()) / batt_cap_kwh
-
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("⚡ Grid Import (Optimised)", f"{opt_grid:.0f} kWh",
-                  delta=f"{opt_grid - base_grid:.0f} kWh vs baseline", delta_color="inverse")
-        k2.metric("☀️ Solar Utilised", f"{solar_total:.0f} kWh",
-                  delta=f"{solar_total/max(base_grid,1)*100:.1f}% of load", delta_color="off")
-        k3.metric("📉 Peak Load Shaved", f"{peak_base - peak_opt:.1f} kW",
-                  delta=f"{(peak_base-peak_opt)/peak_base*100:.1f}% reduction", delta_color="off")
-        k4.metric("🔋 Battery Cycles (today)", f"{batt_cycles:.2f}",
-                  delta="Healthy < 1.5", delta_color="off")
-
-        st.divider()
-
-        # ── Dispatch chart ──
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=campus_hourly["hour"], y=campus_hourly["campus_load_kw"],
-                                 name="Campus Load", line=dict(color="#ef4444", width=2)))
-        fig.add_trace(go.Scatter(x=campus_hourly["hour"], y=campus_hourly["solar_gen_kw"],
-                                 name="Solar Generation", line=dict(color="#f59e0b", width=2),
-                                 fill="tozeroy", fillcolor="rgba(245,158,11,0.1)"))
-        fig.add_trace(go.Scatter(x=campus_hourly["hour"], y=campus_hourly["grid_import_kw"],
-                                 name="Grid Import (Optimised)", line=dict(color="#38bdf8", width=2)))
-        fig.add_trace(go.Bar(x=campus_hourly["hour"],
-                              y=[-d for d in campus_hourly["battery_dispatch_kw"]],
-                              name="Battery Discharge / Charge", marker_color="#8b5cf6", opacity=0.6))
-        fig.update_layout(
-            title="24-Hour Microgrid Dispatch Strategy",
-            xaxis_title="Hour of Day", yaxis_title="Power (kW)",
-            paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-            font_color="#94a3b8", hovermode="x unified",
-            legend=dict(bgcolor="#1e293b"),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        # ── Battery SOC chart ──
-        fig_soc = go.Figure()
-        fig_soc.add_trace(go.Scatter(
-            x=campus_hourly["hour"], y=campus_hourly["battery_soc_pct"],
-            fill="tozeroy", name="Battery SOC (%)",
-            line=dict(color="#8b5cf6"), fillcolor="rgba(139,92,246,0.15)",
-        ))
-        fig_soc.add_hline(y=20, line_dash="dot", line_color="#ef4444",
-                          annotation_text="Min SOC (20%)", annotation_position="bottom right")
-        fig_soc.add_hline(y=90, line_dash="dot", line_color="#10b981",
-                          annotation_text="Max SOC (90%)", annotation_position="top right")
-        fig_soc.update_layout(
-            title="Battery State of Charge (%)",
-            xaxis_title="Hour of Day", yaxis_title="SOC (%)",
-            paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-            font_color="#94a3b8",
-        )
-        st.plotly_chart(fig_soc, use_container_width=True)
-
-        st.info(
-            "💡 **AI Insight:** The current strategy reduces peak grid import by "
-            f"{peak_base - peak_opt:.1f} kW during the 16:00–21:00 tariff window, "
-            f"saving approximately ₹{(base_grid - opt_grid) * 25 / 10:.0f} today."
-        )
 
 
-    # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 6 — Department Billing
-    # ─────────────────────────────────────────────────────────────────────────────
-    elif "Billing" in page:
-        import campus_energy.analytics.billing as bill_mod
-        importlib.reload(bill_mod)
-        from campus_energy.analytics.billing import calculate_billing
 
-        page_heading(
-            title="Automated Department Billing & Chargebacks",
-            subtitle="Sub-meter telemetry allocated to departments — no more flat area-based splits.",
-            badge="Accounting",
-        )
 
-        if selected_role_key == "administrator":
-            st.markdown(
-                """
-                <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>👔 Administrator View Focus:</b> Departmental cost center allocations, sub-meter chargeback auditing, and avoidable energy cost recovery.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
 
-        render_indian_tariff_panel(facility_meta, tel)
-        st.divider()
 
-        with st.spinner("Computing department chargebacks…"):
-            billing = calculate_billing(tel)
 
-        summary  = billing["summary"]
-        daily    = billing["daily_trend"]
-        bld_sum  = billing["building_summary"]
-        insight  = billing["ai_insight"]
 
-        # ── AI Insight ──
-        st.info(insight)
-
-        st.divider()
-
-        col_table, col_chart = st.columns([3, 2])
-
-        with col_table:
-            st.subheader("Department Ledger (28-day period)")
-            st.dataframe(
-                summary.style
-                    .background_gradient(subset=["total_kwh"], cmap="YlOrRd")
-                    .format({"total_kwh": "{:,.1f} kWh", "cost_inr": "₹{:,.2f}"}),
-                use_container_width=True, hide_index=True,
-            )
-
-            # CSV export
-            csv = summary.to_csv(index=False).encode()
-            st.download_button("📄 Export Billing Report (CSV)", csv,
-                               "dept_billing.csv", "text/csv")
-
-        with col_chart:
-            st.subheader("Cost Distribution")
-            fig = px.pie(summary, values="cost_inr", names="department",
-                         hole=0.4, color_discrete_sequence=px.colors.qualitative.Vivid)
-            fig.update_layout(paper_bgcolor="#0f172a", font_color="#94a3b8",
-                              legend=dict(bgcolor="#1e293b"))
-            st.plotly_chart(fig, use_container_width=True)
-
-        # ── Daily trend ──
-        st.divider()
-        st.subheader("Daily Energy Consumption by Department")
-        fig2 = px.area(
-            daily, x="date", y="daily_kwh", color="department",
-            color_discrete_sequence=px.colors.qualitative.Vivid,
-            labels={"daily_kwh": "Energy (kWh)", "date": "Date", "department": "Dept"},
-        )
-        fig2.update_layout(paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-                           font_color="#94a3b8", hovermode="x unified",
-                           legend=dict(bgcolor="#1e293b"))
-        st.plotly_chart(fig2, use_container_width=True)
-
-        # ── Building-level breakdown ──
-        st.subheader("Building-level Metered Cost")
-        st.dataframe(
-            bld_sum.style
-                .background_gradient(subset=["total_kwh"], cmap="Blues")
-                .format({"total_kwh": "{:,.1f} kWh", "cost_inr": "₹{:,.2f}"}),
-            use_container_width=True, hide_index=True,
-        )
 
 
     # ─────────────────────────────────────────────────────────────────────────────
