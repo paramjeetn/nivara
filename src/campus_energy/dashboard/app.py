@@ -16,6 +16,13 @@ warnings.filterwarnings("ignore")
 import logging
 import os
 import sys
+from pathlib import Path
+
+# Ensure 'src' directory is in sys.path even when app is run without 'pip install -e .'
+_src_dir = str(Path(__file__).resolve().parents[2])
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 import traceback
 from typing import Any, Dict, List, Optional, Union
 
@@ -24,7 +31,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
 from datetime import datetime, timedelta
 import json
 import importlib

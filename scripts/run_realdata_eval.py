@@ -10,10 +10,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+# Ensure 'src' directory is in sys.path
+_src_dir = str(Path(__file__).resolve().parents[1] / "src")
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
 
 import numpy as np
 import pandas as pd

@@ -1,14 +1,9 @@
 PYTHON ?= python
-PYTEST ?= pytest
-STREAMLIT ?= streamlit
-PIP ?= pip
+PIP ?= $(PYTHON) -m pip
+PYTEST ?= $(PYTHON) -m pytest
+STREAMLIT ?= $(PYTHON) -m streamlit
 
-ifeq ($(OS),Windows_NT)
-    PYTHON ?= python.bat
-    PYTEST ?= pytest.bat
-    STREAMLIT ?= streamlit.bat
-    PIP ?= pip.bat
-endif
+export PYTHONPATH := src
 
 .PHONY: setup run demo eval realdata test
 
