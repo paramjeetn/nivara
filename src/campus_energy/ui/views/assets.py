@@ -673,7 +673,7 @@ def render_asset_list_view(
     if prepared_df.empty:
         empty_state(
             title="No Assets Found",
-            message="No equipment or meter assets registered for this facility.",
+            description="No equipment or meter assets registered for this facility.",
             action_label="Refresh",
         )
         return
@@ -1355,14 +1355,10 @@ def render_asset_detail_page(
     st.subheader("📋 Asset Operational History & Maintenance Audit Trail")
     history = data.get("audit_history", [])
     if not history:
-        st.markdown(
-            """
-            <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid #334155; border-radius: 8px; padding: 18px; text-align: center; color: #94a3b8;">
-                🟢 <b>No historical anomalies or maintenance interventions on record for this asset.</b>
-                <div style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">Operating within calibrated nominal baseline parameters.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
+        empty_state(
+            title="No anomalies detected in the selected window.",
+            description="No historical anomalies or maintenance interventions on record for this asset. Operating within calibrated nominal baseline parameters.",
+            icon="✓",
         )
     else:
         # History table

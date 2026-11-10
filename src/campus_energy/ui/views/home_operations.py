@@ -695,8 +695,8 @@ def render_home_operations(
 
     if not attention_items:
         empty_state(
-            title="All Systems Nominal",
-            description="No critical exceptions, breached SLAs, or sensor dropouts detected across campus facilities.",
+            title="No anomalies detected in the selected window.",
+            description="No anomalies detected in the selected window across campus facilities.",
             icon="✅",
         )
     else:

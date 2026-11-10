@@ -44,6 +44,8 @@ from campus_energy.notify import NotificationMessage, NotificationResult, Notifi
 from campus_energy.schemas import Alert, AlertStatus, Severity
 from campus_energy.simulator.events import simulate_fault_resolution
 from campus_energy.ui.components import (
+    EMPTY_ACTIVE_ALERTS,
+    EMPTY_WORK_ORDERS,
     empty_state,
     format_inr,
     format_inr_compact,
@@ -615,7 +617,7 @@ def render_alert_drawer_content(
     )
 
     # ── Proactive Inline Display of Blocked Constraint & Safe Alternative ──
-    # Note: No artificial separate showcase expander! Displayed right inline when blocked!
+    # Note: No artificial separate showcase expander. Displayed right inline when blocked.
     if guard.status == "blocked":
         st.markdown(
             f"""
@@ -742,7 +744,7 @@ def render_alert_drawer_content(
                     notif_router=notif_router,
                     alert_statuses=alert_statuses,
                 )
-                st.success(f"Work Order {wo_item.work_order_id} dispatched to {selected_assignee} (SLA: {sla_h}h)!")
+                st.success(f"Work Order {wo_item.work_order_id} dispatched to {selected_assignee} (SLA: {sla_h}h).")
                 st.rerun()
 
     # Action 2: Snooze
@@ -979,8 +981,8 @@ def render_alerts_inbox_tab(
 
     if not filtered:
         empty_state(
-            title="No Alerts Found",
-            description="No active facility anomalies match the selected filters. All assets are operating within nominal parameters.",
+            title="No active alerts matching criteria.",
+            description="No active alerts matching criteria. All assets are operating within nominal parameters.",
             icon="✓",
         )
         return
@@ -1082,8 +1084,8 @@ def render_work_orders_tab(
 
     if not items:
         empty_state(
-            title="No Active Work Orders",
-            description="The maintenance work-order queue is clear. Create work orders directly from active alerts in the Alerts Inbox.",
+            title="No open work orders.",
+            description="No open work orders. Create work orders directly from active alerts in the Alerts Inbox.",
             icon="🛠️",
         )
         return
@@ -1124,6 +1126,14 @@ def render_work_orders_tab(
             continue
 
         filtered_items.append(it)
+
+    if not filtered_items:
+        empty_state(
+            title="No open work orders.",
+            description="No open work orders matching active filters.",
+            icon="🛠️",
+        )
+        return
 
     st.markdown(
         f"<div style='font-size: 0.82rem; color: #94a3b8; margin-bottom: 12px;'>"
@@ -1197,7 +1207,7 @@ def render_work_orders_tab(
                 with b_c1:
                     if st.button("Accept & Dispatch", key=f"btn_accept_{wid}", use_container_width=True):
                         ledger.create_work_order(wid, assignee=wo.assignee, priority=wo.priority)
-                        st.success(f"Work order {wid} dispatched to {wo.assignee}!")
+                        st.success(f"Work order {wid} dispatched to {wo.assignee}.")
                         st.rerun()
 
             elif wo.status in ("work_order", "done", "accepted"):
@@ -1210,7 +1220,7 @@ def render_work_orders_tab(
                             tariff=tariff,
                             alert_statuses=alert_statuses,
                         )
-                        st.success(f"Work Order {wid} verified via IPMVP Option B! Hit-rate: {v_item.hit_rate_status.upper()}")
+                        st.success(f"Work Order {wid} verified via IPMVP Option B. Hit-rate: {v_item.hit_rate_status.upper()}.")
                         st.rerun()
 
             elif wo.status == "verified":
@@ -1388,7 +1398,7 @@ def render_occupant_complaints_tab(
                 sla_hours=12,
             )
             ledger.create_work_order(new_item.work_order_id, assignee="HVAC Lead", sla_hours=12, priority="high")
-            st.success(f"Work Order {new_item.work_order_id} created for {top_theme} and assigned to HVAC Lead!")
+            st.success(f"Work Order {new_item.work_order_id} created for {top_theme} and assigned to HVAC Lead.")
             st.rerun()
 
     # Recurring Complaints Data Table
@@ -1425,6 +1435,13 @@ def render_alerts_work(
     alerts: Optional[List[Alert]] = None,
 ) -> None:
     """Primary operational workflow view: Alert Inbox -> Alert Detail Drawer -> Work Orders Board -> Occupant Complaints."""
+    assets = assets if assets is not None else pd.DataFrame()
+    tel = tel if tel is not None else pd.DataFrame()
+    ctx = ctx if ctx is not None else pd.DataFrame()
+    events = events if events is not None else pd.DataFrame()
+    complaints = complaints if complaints is not None else pd.DataFrame()
+    facility_meta = facility_meta or {}
+
     page_heading(
         title="Alerts & Work",
         subtitle="Primary operational workflow: Alert Inbox → Alert Detail Drawer → Work Orders Board → Occupant Complaints",
@@ -1463,14 +1480,16 @@ def render_alerts_work(
         matching = [a for a in raw_alerts if a.asset_id == l_evt.asset_id]
         if not matching:
             forced_val = float(l_evt.injection_parameters.get("forced_power_kw", l_evt.injection_parameters.get("surge_lpm", 15.0)))
-            bldg = assets.loc[assets["asset_id"] == l_evt.asset_id, "building_id"].iloc[0] if (assets["asset_id"] == l_evt.asset_id).any() else "BLD-MAIN"
+            has_aid = not assets.empty and "asset_id" in assets.columns and (assets["asset_id"] == l_evt.asset_id).any()
+            bldg = assets.loc[assets["asset_id"] == l_evt.asset_id, "building_id"].iloc[0] if has_aid and "building_id" in assets.columns else "BLD-MAIN"
+            zone = assets.loc[assets["asset_id"] == l_evt.asset_id, "zone_id"].iloc[0] if has_aid and "zone_id" in assets.columns and pd.notna(assets.loc[assets["asset_id"] == l_evt.asset_id, "zone_id"].iloc[0]) else None
             synthesized_alert = Alert(
                 alert_id=f"ALT-{l_evt.event_id.replace('EVT-', '')}",
                 detected_at=datetime.now(timezone.utc),
                 event_start_estimate=l_evt.start_time,
                 asset_id=l_evt.asset_id,
                 building_id=bldg,
-                zone_id=assets.loc[assets["asset_id"] == l_evt.asset_id, "zone_id"].iloc[0] if (assets["asset_id"] == l_evt.asset_id).any() and "zone_id" in assets.columns and pd.notna(assets.loc[assets["asset_id"] == l_evt.asset_id, "zone_id"].iloc[0]) else None,
+                zone_id=zone,
                 anomaly_type=l_evt.event_type.value if hasattr(l_evt.event_type, "value") else str(l_evt.event_type),
                 severity=l_evt.severity,
                 actual_value=forced_val,

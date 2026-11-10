@@ -126,9 +126,57 @@ def calculate_esg_metrics(
     fault_waste_fraction = assumptions.get_value("waste.fault_avoidable_fraction")
     tree_seq_kg_yr = assumptions.get_value("sustainability.tree_sequestration_kg_co2_yr")
 
-    tel = telemetry_df.copy()
-    tel["timestamp"] = pd.to_datetime(tel["timestamp"], utc=True)
-    tel["date"] = tel["timestamp"].dt.date
+    if telemetry_df is None or telemetry_df.empty or "timestamp" not in telemetry_df.columns:
+        bee = _get_bee_star(0.0, facility_type)
+        return {
+            "kpis": {
+                "total_energy_kwh": 0.0,
+                "total_cost_inr": 0.0,
+                "total_carbon_kg": 0.0,
+                "total_carbon_tons": 0.0,
+                "wasted_kwh": 0.0,
+                "avoidable_cost_inr": 0.0,
+                "avoidable_carbon_kg": 0.0,
+                "waste_pct": 0.0,
+                "annual_kwh_projection": 0.0,
+                "annual_cost_inr_projection": 0.0,
+                "annual_carbon_tons_projection": 0.0,
+                "trees_equivalent": 0,
+                "napcc_savings_kwh": 0.0,
+                "napcc_savings_cost_inr": 0.0,
+                "napcc_savings_carbon_tons": 0.0,
+                "avoidable_savings_range": {"energy_kwh": {"low": 0.0, "expected": 0.0, "high": 0.0}, "cost_inr": {"low": 0.0, "expected": 0.0, "high": 0.0}},
+                "napcc_savings_range": {"energy_kwh": {"low": 0.0, "expected": 0.0, "high": 0.0}, "cost_inr": {"low": 0.0, "expected": 0.0, "high": 0.0}},
+                "baseline_electricity_kwh": 0.0,
+                "current_electricity_kwh": 0.0,
+                "baseline_water_kl": 0.0,
+                "current_water_kl": 0.0,
+                "avoidable_water_kl": 0.0,
+                "water_cost_inr": 0.0,
+                "avoidable_water_cost_inr": 0.0,
+                "water_savings_range": {"water_kl": {"low": 0.0, "expected": 0.0, "high": 0.0}, "cost_inr": {"low": 0.0, "expected": 0.0, "high": 0.0}},
+                "avoidable_cost_display": "Expected: ₹0 (Range: ₹0 – ₹0)",
+                "napcc_savings_cost_display": "Expected: ₹0 (Range: ₹0 – ₹0)",
+                "disclaimer": "Decision-support estimate. Field verification required.",
+            },
+            "bee": bee,
+            "daily_trend": pd.DataFrame(),
+            "building_breakdown": pd.DataFrame(),
+        }
+
+    if telemetry_df is None or telemetry_df.empty or "timestamp" not in telemetry_df.columns:
+        tel = pd.DataFrame(columns=["timestamp", "date", "reading_type", "interval_energy_kwh", "asset_id", "power_kw"])
+    else:
+        tel = telemetry_df.copy()
+        tel["timestamp"] = pd.to_datetime(tel["timestamp"], utc=True)
+        tel["date"] = tel["timestamp"].dt.date
+
+    if "reading_type" not in tel.columns:
+        tel["reading_type"] = "meter"
+    if "interval_energy_kwh" not in tel.columns:
+        tel["interval_energy_kwh"] = 0.0
+    if "asset_id" not in tel.columns:
+        tel["asset_id"] = "MTR-MAIN"
 
     # --- Total energy from main building meters ---
     meters = tel[tel["reading_type"] == "meter"].copy()
@@ -137,9 +185,12 @@ def calculate_esg_metrics(
     total_carbon_kg = total_energy_kwh * grid_emission_factor
 
     # --- Avoidable waste: estimate fault-waste fraction of anomalous consumption as avoidable ---
-    evt = events_df.copy()
-    evt["start_time"] = pd.to_datetime(evt["start_time"], utc=True)
-    evt["end_time"] = pd.to_datetime(evt["end_time"], utc=True)
+    if events_df is None or events_df.empty or "start_time" not in events_df.columns:
+        evt = pd.DataFrame(columns=["start_time", "end_time", "asset_id"])
+    else:
+        evt = events_df.copy()
+        evt["start_time"] = pd.to_datetime(evt["start_time"], utc=True)
+        evt["end_time"] = pd.to_datetime(evt["end_time"], utc=True)
 
     wasted_kwh = 0.0
     for _, row in evt.iterrows():
@@ -294,7 +345,7 @@ def calculate_esg_metrics(
             "water_savings_range": water_savings_range,
             "avoidable_cost_display": f"Expected: ₹{avoidable_cost_inr:,.0f} (Range: ₹{avoidable_cost_inr*0.8:,.0f} – ₹{avoidable_cost_inr*1.25:,.0f})",
             "napcc_savings_cost_display": f"Expected: ₹{napcc_savings_cost:,.0f} (Range: ₹{napcc_savings_cost*0.85:,.0f} – ₹{napcc_savings_cost*1.15:,.0f})",
-            "disclaimer": "⚠️ Decision-support estimate, not an official measurement.",
+            "disclaimer": "Decision-support estimate. Field verification required.",
         },
         "bee": bee,
         "daily_trend": daily,

@@ -160,6 +160,58 @@ h3.nivara-heading-3, .nivara-heading-3 {
 .col-11 { grid-column: span 11 / span 11; }
 .col-12 { grid-column: span 12 / span 12; }
 
+@media (max-width: 1400px) {
+  .block-container {
+    max-width: 100% !important;
+    padding-left: 1.25rem !important;
+    padding-right: 1.25rem !important;
+    padding-top: 1rem !important;
+  }
+
+  /* Compact KPI sizing for 4-column cards on 1366px laptop & projector displays */
+  .kpi-card {
+    padding: 10px 12px;
+    min-height: 90px;
+  }
+
+  .kpi-value {
+    font-size: 1.35rem;
+  }
+
+  .kpi-label {
+    font-size: 0.72rem;
+  }
+
+  div[data-testid="stMetric"] {
+    padding: 10px 12px;
+  }
+
+  div[data-testid="stMetricValue"] {
+    font-size: 1.35rem !important;
+  }
+
+  /* Ensure tables don't cause screen-level horizontal scrolling */
+  .nivara-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .stDataFrame, div[data-testid="stPlotlyChart"] {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Reduce heading scale slightly for projector vertical height (768px) */
+  h1.nivara-heading-1, .nivara-heading-1 {
+    font-size: 1.45rem;
+  }
+
+  h2.nivara-heading-2, .nivara-heading-2 {
+    font-size: 1.2rem;
+  }
+}
+
 @media (max-width: 992px) {
   .col-3, .col-4 { grid-column: span 6 / span 6; }
   .col-8, .col-9 { grid-column: span 12 / span 12; }
@@ -170,6 +222,24 @@ h3.nivara-heading-3, .nivara-heading-3 {
   .col-7, .col-8, .col-9, .col-10, .col-11, .col-12 {
     grid-column: span 12 / span 12;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Keyboard Accessibility & High-Contrast Focus Rings
+   -------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--nv-brand-primary) !important;
+  outline-offset: 2px !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #38bdf8 !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25) !important;
 }
 
 /* --------------------------------------------------------------------------

@@ -189,7 +189,7 @@ def render_login_screen() -> Optional[UserProfile]:
                     st.query_params["page"] = "home"
                     st.query_params["facility"] = matched_user.default_facility
                     st.query_params["range"] = "today"
-                    st.success(f"Welcome back, {matched_user.name}!")
+                    st.success(f"Welcome back, {matched_user.name}.")
                     st.rerun()
                 else:
                     st.error("User not found. Please select one of the demo profiles above or check your ID.")

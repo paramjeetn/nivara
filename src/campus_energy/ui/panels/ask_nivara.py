@@ -491,7 +491,7 @@ def _render_guarded_actions_section(
                             sla_hours=12,
                             priority="high",
                         )
-                        st.success(f"Dispatched safe alternative Work Order {wo.work_order_id}!")
+                        st.success(f"Dispatched safe alternative Work Order {wo.work_order_id}.")
                         st.rerun()
 
             # Permitted / Review actions: Add to Decisions or Create Work Order
@@ -525,7 +525,7 @@ def _render_guarded_actions_section(
                                 sla_hours=24,
                                 priority="high",
                             )
-                            st.success(f"Work Order {wo.work_order_id} created and dispatched!")
+                            st.success(f"Work Order {wo.work_order_id} created and dispatched.")
                             st.rerun()
                         else:
                             st.info("Work Order created and dispatched.")
@@ -623,7 +623,7 @@ def _render_ask_nivara_content(
     # ── Chat Messages Stream ──
     if "ask_nivara_messages" not in st.session_state or not st.session_state["ask_nivara_messages"]:
         greeting = (
-            f"Hello {current_user.name if current_user else 'Facility Operator'}! "
+            f"Hello {current_user.name if current_user else 'Facility Operator'}. "
             f"I am Nivara, your facility intelligence assistant calibrated for {role_display} operations. "
             f"I am currently grounded in the context of **{context_info['chip_label'].replace('🎯 Context: ', '')}**. "
             f"How can I assist you with {fac_name} today?"

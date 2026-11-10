@@ -144,7 +144,8 @@ def render_water(
     **kwargs,
 ) -> None:
     """Render the unified Water Destination View (HydroSense)."""
-    fac_name = facility_meta.get("name", "Campus Facility")
+    meta = facility_meta or {}
+    fac_name = getattr(meta, "facility_name", meta.get("name", "Campus Facility") if isinstance(meta, dict) else "Campus Facility")
     page_heading(
         title="Water Resource Intelligence",
         subtitle=f"Building telemetry, Minimum Night Flow (MNF) leak watch & acoustic anomaly detection · {fac_name}",
@@ -153,7 +154,7 @@ def render_water(
 
     # Load or generate water telemetry
     if water_df is None:
-        data_dir_str = str(facility_meta.get("data_dir", "data/generated"))
+        data_dir_str = str(meta.get("data_dir", "data/generated") if isinstance(meta, dict) else getattr(meta, "data_dir", "data/generated"))
         data_dir = Path(data_dir_str)
         water_file = data_dir / "water.csv"
         if water_file.exists():
@@ -383,7 +384,7 @@ def render_water(
                             notif_router=notif_router,
                         )
                         st.session_state[f"wo_dispatched_{lid}"] = True
-                        st.toast(f"Work Order {new_wo.work_order_id} dispatched to Plumbing Tech!")
+                        st.toast(f"Work Order {new_wo.work_order_id} dispatched to Plumbing Tech.")
                         st.rerun()
 
             with col_act2:

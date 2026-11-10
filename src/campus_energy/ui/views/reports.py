@@ -239,6 +239,14 @@ def render_reports(
                     )
                     st.session_state["generated_audit_pdf_bytes"] = pdf_bytes
                     st.session_state["generated_audit_pdf_ts"] = datetime.now()
+                    st.session_state.setdefault("historical_audit_logs", []).append({
+                        "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        "Facility": fac_name,
+                        "Scope": period_choice,
+                        "Type": "Official BEE/ECBC Audit PDF",
+                        "Size": f"{len(pdf_bytes):,} bytes",
+                        "Status": "Generated & Certified",
+                    })
 
             # Render download button if bytes are ready in session state
             pdf_bytes_ready = st.session_state.get("generated_audit_pdf_bytes")
@@ -285,6 +293,21 @@ def render_reports(
                 use_container_width=True,
                 key="btn_download_audit_csv",
             )
+
+        # ── Historical Audit Trail & Log Stream ──
+        st.markdown("<div style='margin-top: 24px;'></div>", unsafe_allow_html=True)
+        st.markdown("#### 📜 Historical Audit Logs & Verification Trail")
+        st.caption("Immutable record of certified statutory audit reports generated for governance boards.")
+
+        historical_logs = st.session_state.get("historical_audit_logs", [])
+        if not historical_logs:
+            empty_state(
+                title="No historical audit logs found.",
+                description="No historical audit logs found. Generate an official audit PDF or run an automated dispatch cycle to create audit trail records.",
+                icon="📜",
+            )
+        else:
+            st.dataframe(pd.DataFrame(historical_logs), use_container_width=True, hide_index=True)
 
     # ─────────────────────────────────────────────────────────────────────────
     # TAB 2: Statutory Compliance & BEE
@@ -724,7 +747,7 @@ def render_reports(
                 "modules": {"bee": inc_bee, "ledger": inc_ledger, "chargeback": inc_chargeback},
                 "last_saved": datetime.now(timezone.utc).isoformat(),
             }
-            st.success(f"✓ Scheduled reporting configuration saved successfully for {fac_name}!")
+            st.success(f"Scheduled reporting configuration saved for {fac_name}.")
 
         # Active Schedule Overview Card
         saved_cfg = st.session_state.get("sched_rep_config")

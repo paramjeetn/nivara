@@ -435,29 +435,57 @@ def page_heading(
     st.markdown(html_str, unsafe_allow_html=True)
 
 
+# Standardized Empty State Titles
+EMPTY_ACTIVE_ALERTS: str = "No active alerts matching criteria."
+EMPTY_WORK_ORDERS: str = "No open work orders."
+EMPTY_ANOMALIES: str = "No anomalies detected in the selected window."
+EMPTY_AUDIT_LOGS: str = "No historical audit logs found."
+
+
 def empty_state(
     title: str,
-    description: str,
+    description: str = "",
     action_label: Optional[str] = None,
     on_click: Optional[Callable[[], Any]] = None,
     icon: str = "🔍",
     key: Optional[str] = None,
+    message: Optional[str] = None,
 ) -> bool:
     """Render a clean slate empty state with clear context and optional next action."""
+    desc = description or message or ""
     html_content = f"""
     <div class="nivara-empty-state">
       <div class="empty-state-icon">{icon}</div>
       <div class="empty-state-title">{html.escape(title)}</div>
-      <div class="empty-state-desc">{html.escape(description)}</div>
+      <div class="empty-state-desc">{html.escape(desc)}</div>
     </div>
     """
     st.markdown(html_content, unsafe_allow_html=True)
 
     if action_label:
-        button_key = key or f"empty_state_action_{title.lower().replace(' ', '_')}"
+        button_key = key or f"empty_state_action_{title.lower().replace(' ', '_').replace('.', '')}"
         clicked = st.button(action_label, key=button_key, use_container_width=False)
         if clicked and on_click:
             on_click()
         return clicked
 
     return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Decision Support Disclaimer
+# ─────────────────────────────────────────────────────────────────────────────
+
+DECISION_SUPPORT_DISCLAIMER: str = "Decision-support estimate. Field verification required."
+
+
+def decision_support_disclaimer(
+    extra_text: Optional[str] = None,
+    badge: bool = True,
+) -> None:
+    """Render the standardized decision-support disclaimer across planning & estimate views."""
+    text = DECISION_SUPPORT_DISCLAIMER
+    if extra_text:
+        text = f"{text} {extra_text}"
+    st.caption(f"ℹ️ *{html.escape(text)}*")
+

@@ -240,7 +240,7 @@ def render_settings(
     # ─────────────────────────────────────────────────────────────────────────
     with tab_data:
         st.markdown("### 📡 Telemetry Data Sources & Ingestion Pipeline")
-        st.caption("Active IoT gateways, Bring-Your-Own-Data (BYOD) smart CSV mapping, 5-rule data quality scorecard, and live packet monitor.")
+        st.caption("Active IoT gateways, Bring-Your-Own-Data (BYOD) automated CSV mapping, 5-rule data quality scorecard, and live packet monitor.")
 
         # Ingestion stream telemetry status strip
         gw_status = router.get_gateway_status()
@@ -262,7 +262,7 @@ def render_settings(
         st.divider()
 
         # Bring-Your-Own-Data (BYOD) Console
-        st.markdown("#### 1. Bring-Your-Own-Data (BYOD) Smart Ingestion Console")
+        st.markdown("#### 1. Bring-Your-Own-Data (BYOD) Telemetry Ingestion Console")
         st.caption("Upload external BMS/SCADA telemetry CSVs. Heuristic regex automatically resolves non-standard column headers, unit mismatches, and timezones.")
 
         col_up, col_samp = st.columns([3, 2])
@@ -324,7 +324,7 @@ def render_settings(
                 clean_df, dq_report = process_uploaded_csv(active_input)
                 st.session_state["settings_active_dq_report"] = dq_report
 
-                st.success(f"✓ Successfully processed {len(clean_df):,} telemetry records! DQE Quality Score: {dq_report.quality_score:.1f}%")
+                st.success(f"Processed {len(clean_df):,} telemetry records. DQE Quality Score: {dq_report.quality_score:.1f}%.")
 
                 # DQE 5-Rule Scorecard
                 st.markdown("##### 🔍 Data Quality Engine (DQE) 5-Rule Scorecard")
@@ -457,7 +457,7 @@ def render_settings(
                 )
                 disp_results = router.dispatch(probe_msg)
                 st.session_state["last_test_dispatch_results"] = disp_results
-                st.success(f"✓ Dispatched test alert to {len(disp_results)} registered notification channels!")
+                st.success(f"Dispatched test alert to {len(disp_results)} registered notification channels.")
 
         with t_col2:
             st.markdown("**Recent Delivery Audit Log:**")
@@ -477,8 +477,8 @@ def render_settings(
                 st.dataframe(pd.DataFrame(hist_rows), use_container_width=True, hide_index=True)
             else:
                 empty_state(
-                    title="No Outbound Dispatches Recorded",
-                    description="Dispatch history is clean. Trigger a test alert above to verify notification channel routing.",
+                    title="No historical audit logs found.",
+                    description="Dispatch audit log is clean. Trigger a test alert above to verify notification channel routing.",
                 )
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -771,7 +771,7 @@ def render_settings(
                 )
                 router.dispatch(probe_msg)
 
-                st.success(f"✓ Fault injected into stream! Detection consensus latency: {lat_ms:.1f}ms. Injected Event ID: `{ev.event_id}`")
+                st.success(f"Fault injected into stream. Detection consensus latency: {lat_ms:.1f}ms. Injected Event ID: `{ev.event_id}`.")
                 st.rerun()
 
         with btn_c2:

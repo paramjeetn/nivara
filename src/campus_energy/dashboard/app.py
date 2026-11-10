@@ -277,8 +277,8 @@ def render_byod_upload_widget(
         st.markdown(
             """
             <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.84rem; color: #cbd5e1;">
-                <b>🚀 External Telemetry Ingestion Engine:</b> Upload raw CSV files from any third-party BMS, smart meter, or IoT gateway.
-                Nivara automatically applies <b>smart regex heuristic mapping</b>, converts non-standard units (e.g. Watts ➔ kW, Joules ➔ kWh),
+                <b>External Telemetry Ingestion Engine:</b> Upload raw CSV files from any third-party BMS, smart meter, or IoT gateway.
+                Nivara automatically applies <b>automated regex heuristic mapping</b>, converts non-standard units (e.g. Watts ➔ kW, Joules ➔ kWh),
                 normalizes timezones, validates schemas, and computes a multi-point <b>Data Quality Scorecard</b>.
             </div>
             """,
@@ -471,7 +471,7 @@ def render_byod_upload_widget(
         if apply_active:
             st.session_state["injected_telemetry"] = byod_df
             st.session_state["byod_quality_report"] = report
-            st.success("Active telemetry stream updated to uploaded dataset! Dashboard refreshed.")
+            st.success("Active telemetry stream updated to uploaded dataset. Dashboard refreshed.")
             st.rerun()
 
         if run_analytics:
@@ -1272,6 +1272,16 @@ if chosen_dest == "Home":
         """,
         unsafe_allow_html=True,
     )
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        """Render a destination view inside an operational error boundary to prevent unhandled tracebacks."""
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     p_home_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
     try:
         from campus_energy.tariffs import load_tariff
@@ -1281,7 +1291,9 @@ if chosen_dest == "Home":
 
     if selected_role_key == "operations":
         from campus_energy.ui.views.home_operations import render_home_operations
-        render_home_operations(
+        safe_render_view(
+            "Operations Home",
+            render_home_operations,
             facility_meta=facility_meta,
             assets=assets,
             tel=tel,
@@ -1294,7 +1306,9 @@ if chosen_dest == "Home":
         )
     elif selected_role_key == "sustainability":
         from campus_energy.ui.views.home_sustainability import render_home_sustainability
-        render_home_sustainability(
+        safe_render_view(
+            "Sustainability Home",
+            render_home_sustainability,
             facility_meta=facility_meta,
             assets=assets,
             tel=tel,
@@ -1307,7 +1321,9 @@ if chosen_dest == "Home":
         )
     else:
         from campus_energy.ui.views.home_admin import render_home_admin
-        render_home_admin(
+        safe_render_view(
+            "Administrator Home",
+            render_home_admin,
             facility_meta=facility_meta,
             assets=assets,
             tel=tel,
@@ -1321,6 +1337,15 @@ if chosen_dest == "Home":
     st.stop()
 
 elif chosen_dest == "Alerts & Work":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.alerts_work import render_alerts_work
 
     p_alerts_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1332,7 +1357,9 @@ elif chosen_dest == "Alerts & Work":
 
     notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-    render_alerts_work(
+    safe_render_view(
+        "Alerts & Work",
+        render_alerts_work,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,
@@ -1347,6 +1374,15 @@ elif chosen_dest == "Alerts & Work":
     st.stop()
 
 elif chosen_dest == "Assets":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.assets import render_assets
 
     p_assets_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1356,7 +1392,9 @@ elif chosen_dest == "Assets":
     except Exception:
         p_assets_tariff = None
 
-    render_assets(
+    safe_render_view(
+        "Assets",
+        render_assets,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,
@@ -1371,6 +1409,15 @@ elif chosen_dest == "Assets":
     st.stop()
 
 elif chosen_dest == "Energy":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.energy import render_energy
 
     p_energy_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1382,7 +1429,9 @@ elif chosen_dest == "Energy":
 
     notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-    render_energy(
+    safe_render_view(
+        "Energy",
+        render_energy,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,
@@ -1397,6 +1446,15 @@ elif chosen_dest == "Energy":
     st.stop()
 
 elif chosen_dest == "Water":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.water import render_water
 
     p_water_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1408,7 +1466,9 @@ elif chosen_dest == "Water":
 
     notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-    render_water(
+    safe_render_view(
+        "Water",
+        render_water,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,
@@ -1423,6 +1483,15 @@ elif chosen_dest == "Water":
     st.stop()
 
 elif chosen_dest == "Reports":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.reports import render_reports
 
     p_reports_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1434,7 +1503,9 @@ elif chosen_dest == "Reports":
 
     notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-    render_reports(
+    safe_render_view(
+        "Reports",
+        render_reports,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,
@@ -1450,6 +1521,15 @@ elif chosen_dest == "Reports":
     st.stop()
 
 elif chosen_dest == "Settings":
+    def safe_render_view(view_name: str, render_fn: Any, *args: Any, **kwargs: Any) -> None:
+        try:
+            render_fn(*args, **kwargs)
+        except Exception as exc:
+            logger.exception("Operational error rendering %s: %s", view_name, exc)
+            st.error(f"Unable to render {view_name} due to an operational processing condition.")
+            st.caption(f"Error reference: {type(exc).__name__} — {html.escape(str(exc))}")
+            st.info("System operational state remains intact. You can navigate to other destinations via the top bar or left navigation.")
+
     from campus_energy.ui.views.settings import render_settings
 
     p_settings_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
@@ -1461,7 +1541,9 @@ elif chosen_dest == "Settings":
 
     notif_router = get_notification_router() if "get_notification_router" in globals() else None
 
-    render_settings(
+    safe_render_view(
+        "Settings",
+        render_settings,
         facility_meta=facility_meta,
         assets=assets,
         tel=tel,

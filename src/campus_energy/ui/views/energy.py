@@ -30,6 +30,7 @@ from campus_energy.analytics.forecasting import (
 )
 from campus_energy.decision.ledger import SavingsLedger
 from campus_energy.ui.components import (
+    decision_support_disclaimer,
     empty_state,
     format_inr,
     format_inr_compact,
@@ -64,8 +65,9 @@ def render_energy(
     **kwargs,
 ) -> None:
     """Render the unified Energy Destination with 5 operational tabs."""
-    fac_name = facility_meta.get("name", "Campus Facility")
-    fac_type = facility_meta.get("facility_type", "University").title()
+    meta = facility_meta or {}
+    fac_name = getattr(meta, "facility_name", meta.get("name", "Campus Facility") if isinstance(meta, dict) else "Campus Facility")
+    fac_type = getattr(meta, "facility_type", meta.get("facility_type", "University") if isinstance(meta, dict) else "University").title()
 
     page_heading(
         title="Energy Operations & Intelligence",
@@ -564,8 +566,9 @@ def _render_tab_scenarios(
         )
 
         st.subheader("Expected 24-Hour Scenario Impact")
+        decision_support_disclaimer()
 
-        # 3 Result Cards — Single Value by Default!
+        # 3 Result Cards — Single Value by Default
         r1, r2, r3 = st.columns(3)
         with r1:
             st.metric(
