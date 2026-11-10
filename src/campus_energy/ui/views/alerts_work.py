@@ -538,6 +538,19 @@ def render_alert_drawer_content(
         unsafe_allow_html=True,
     )
 
+    col_target_ast, col_ast_btn = st.columns([4, 2])
+    with col_target_ast:
+        st.markdown(f"<span style='font-size: 0.82rem; color: #94a3b8;'>Target Equipment: <code style='color: #38bdf8;'>{html.escape(item['asset_id'])}</code> ({html.escape(item.get('asset_name', item['asset_id']))})</span>", unsafe_allow_html=True)
+    with col_ast_btn:
+        if st.button("🏢 View Asset Details", key=f"alert_view_asset_{aid}", use_container_width=True):
+            st.session_state["selected_nav_destination"] = "Assets"
+            st.session_state["active_asset_detail_id"] = item["asset_id"]
+            st.query_params["page"] = "assets"
+            st.query_params["asset"] = item["asset_id"]
+            st.rerun()
+
+    st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+
     # ── 2. Financial & Energy Impact Strip ──
     c1, c2, c3, c4 = st.columns(4)
     with c1:

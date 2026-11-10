@@ -722,7 +722,13 @@ def render_home_operations(
             with r_col1:
                 st.markdown(severity_chip(it["severity"]), unsafe_allow_html=True)
             with r_col2:
-                st.markdown(f"<code style='font-size: 0.82rem; color: #38bdf8;'>{html.escape(it['asset_id'])}</code>", unsafe_allow_html=True)
+                aid_val = str(it["asset_id"])
+                if st.button(aid_val, key=f"ops_ast_link_{it['id']}", help=f"Inspect asset {aid_val}"):
+                    st.session_state["selected_nav_destination"] = "Assets"
+                    st.session_state["active_asset_detail_id"] = aid_val
+                    st.query_params["page"] = "assets"
+                    st.query_params["asset"] = aid_val
+                    st.rerun()
             with r_col3:
                 st.markdown(f"<span style='font-size: 0.88rem; color: #f1f5f9; font-weight: 500;'>{html.escape(it['headline'])}</span>", unsafe_allow_html=True)
             with r_col4:
