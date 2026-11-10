@@ -95,24 +95,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for a polished dark theme
-st.markdown("""
-<style>
-    .stMetric { background: #1e293b; border-radius: 10px; padding: 12px 14px; border: 1px solid #334155; min-width: 0; }
-    .stMetric label { color: #94a3b8 !important; font-size: 0.82rem !important; font-weight: 500; white-space: normal !important; }
-    .stMetric [data-testid="metric-container"] { background: #1e293b; }
-    .stMetric [data-testid="stMetricValue"] { font-size: 1.35rem !important; font-weight: 700; color: #f8fafc !important; white-space: nowrap !important; }
-    .stMetric [data-testid="stMetricDelta"] { font-size: 0.78rem !important; white-space: nowrap !important; }
-    div[data-testid="stSidebarNav"] { background: #0f172a; }
-    .alert-card { background: #1e293b; border-left: 4px solid #ef4444; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; }
-    .alert-card.medium { border-left-color: #f59e0b; }
-    .alert-card.low { border-left-color: #3b82f6; }
-    .complaint-bubble { background: #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; border: 1px solid #334155; font-size: 0.88rem; }
-    h1, h2, h3 { color: #f8fafc; }
-    .sidebar-health { font-size: 0.82rem; color: #94a3b8; }
-</style>
-
-""", unsafe_allow_html=True)
+# Load Nivara enterprise design system styles
+from campus_energy.ui.styles import load_global_styles
+load_global_styles()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Facility Definitions (Dynamic Discovery from Facility Profiles)
@@ -1427,8 +1412,7 @@ def load_water_data(data_dir_str: str, assets: pd.DataFrame) -> pd.DataFrame:
 # User Authentication & Shell Layout (Step UX-2)
 # ─────────────────────────────────────────────────────────────────────────────
 from campus_energy.users import UserProfile, authenticate_user, load_users, get_demo_users
-from campus_energy.ui.top_bar import render_top_bar
-from campus_energy.ui.login import render_login_screen
+from campus_energy.ui import page_heading, render_top_bar, render_login_screen
 
 _qp = st.query_params
 
@@ -1570,6 +1554,7 @@ DESTINATION_SLUGS = {
     "water": "Water",
     "reports": "Reports",
     "settings": "Settings",
+    "styleguide": "Styleguide",
     # Legacy aliases
     "executive": "Home",
     "map": "Assets",
@@ -1588,6 +1573,7 @@ SLUG_BY_DESTINATION = {
     "Water": "water",
     "Reports": "reports",
     "Settings": "settings",
+    "Styleguide": "styleguide",
 }
 
 # Check query param for page destination
@@ -1638,6 +1624,20 @@ with st.sidebar:
     dest_to_label = {v: k for k, v in label_to_dest.items()}
 
     cur_dest = st.session_state.get("selected_nav_destination", "Home")
+    if cur_dest == "Styleguide":
+        st.markdown(
+            """
+            <div style="background: rgba(2, 132, 199, 0.15); border: 1px solid #0284c7; border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;">
+                <span style="font-weight: 600; color: #38bdf8; font-size: 0.8rem;">🎨 Developer Styleguide</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("← Back to Operations", key="exit_styleguide_btn", use_container_width=True):
+            st.session_state["selected_nav_destination"] = "Home"
+            st.query_params["page"] = "home"
+            st.rerun()
+
     cur_label = dest_to_label.get(cur_dest, nav_labels[0])
     cur_idx = nav_labels.index(cur_label) if cur_label in nav_labels else 0
 
@@ -1650,7 +1650,9 @@ with st.sidebar:
     )
 
     chosen_dest = label_to_dest.get(selected_nav_label, "Home")
-    if chosen_dest != cur_dest:
+    if cur_dest == "Styleguide" and selected_nav_label == cur_label:
+        chosen_dest = "Styleguide"
+    elif chosen_dest != cur_dest:
         st.session_state["selected_nav_destination"] = chosen_dest
         st.query_params["page"] = SLUG_BY_DESTINATION.get(chosen_dest, "home")
         st.rerun()
@@ -1742,6 +1744,11 @@ if st.session_state.get("show_ask_nivara", False):
 
 # ── Map Chosen Destination to Render Page ──
 page = ""
+if chosen_dest == "Styleguide":
+    from campus_energy.ui.styleguide import render_styleguide
+    render_styleguide()
+    st.stop()
+
 if chosen_dest == "Home":
     st.markdown(
         f"""
@@ -1825,8 +1832,11 @@ try:
         importlib.reload(report_gen_mod)
         from campus_energy.analytics.report_generator import generate_facility_pdf
 
-        st.title("📊 Executive Overview — ESG & Sustainability")
-        st.caption(f"28-day simulation period · Last data point: {latest_ts.strftime('%Y-%m-%d %H:%M')} · Facility: {selected_facility_label}")
+        page_heading(
+            title="Executive Overview — ESG & Sustainability",
+            subtitle=f"28-day analytical period · Last data point: {latest_ts.strftime('%Y-%m-%d %H:%M')} · Facility: {selected_facility_label}",
+            badge="Executive Scope",
+        )
 
         if selected_role_key == "administrator":
             st.markdown(
@@ -2346,8 +2356,11 @@ try:
     # PAGE 1B — Governance & Policy
     # ─────────────────────────────────────────────────────────────────────────────
     elif "Governance" in page:
-        st.title("🏛️ Institutional Governance, Policy & Multi-Facility Benchmarking")
-        st.caption("India-wide facility energy comparison, Bureau of Energy Efficiency (BEE) compliance, and state-level scaling impact.")
+        page_heading(
+            title="Institutional Governance, Policy & Multi-Facility Benchmarking",
+            subtitle="India-wide facility energy comparison, Bureau of Energy Efficiency (BEE) compliance, and state-level scaling impact.",
+            badge="Governance",
+        )
 
         if selected_role_key == "sustainability":
             st.markdown(
@@ -2902,8 +2915,11 @@ try:
     elif "Campus Map" in page:
         import streamlit.components.v1 as components
 
-        st.title("🗺️ Real-Time 3D Campus Energy Heatmap")
-        st.caption("Satellite view with live power draw overlays and anomaly markers. Click a pin for details.")
+        page_heading(
+            title="Real-Time 3D Campus Energy Heatmap",
+            subtitle="Satellite view with live power draw overlays and anomaly markers. Click a pin for details.",
+            badge="Live Telemetry",
+        )
 
         # Real-Time Telemetry Mapping:
         # Anchor the latest simulation data to current real-time clock (Today)
@@ -3532,8 +3548,11 @@ try:
         importlib.reload(fc_prophet_mod)
         from campus_energy.analytics.forecasting_prophet import generate_prophet_forecast
 
-        st.title("🤖 AI Forecasting & Scenario Simulator")
-        st.caption("Ridge regression baseline trained on 21 days of telemetry. Simulate weather and policy changes.")
+        page_heading(
+            title="AI Forecasting & Scenario Simulator",
+            subtitle="Ridge regression baseline trained on 21 days of telemetry. Simulate weather and policy changes.",
+            badge="Predictive Models",
+        )
 
         render_assumptions_expander([
             "tariff.electricity_commercial",
@@ -3885,8 +3904,11 @@ try:
     # PAGE 4 — NLP Complaints & Alerts
     # ─────────────────────────────────────────────────────────────────────────────
     elif "Alerts" in page:
-        st.title("🚨 AI Anomaly Alerts & NLP Complaint Correlation")
-        st.caption("AI-detected anomalies correlated with real facility complaints submitted by occupants.")
+        page_heading(
+            title="AI Anomaly Alerts & NLP Complaint Correlation",
+            subtitle="AI-detected anomalies correlated with real facility complaints submitted by occupants.",
+            badge="Operational Queue",
+        )
 
         # Step 13: Dedicated Live Fault Injector Widget
         render_fault_injection_studio(
@@ -4732,10 +4754,10 @@ try:
     elif "Water" in page:
         from campus_energy.simulator.water import analyze_water_data
 
-        st.title("💧 Water Resource Intelligence — HydroSense")
-        st.caption(
-            f"Building-level Water Telemetry, Minimum Night Flow (MNF) Baseline & Leak Anomaly Detection · "
-            f"Facility: {selected_facility_label}"
+        page_heading(
+            title="Water Resource Intelligence — HydroSense",
+            subtitle=f"Building-level Water Telemetry, Minimum Night Flow (MNF) Baseline & Leak Anomaly Detection · Facility: {selected_facility_label}",
+            badge="HydroSense v1.2",
         )
 
         with st.spinner("Analyzing water telemetry & pipe network acoustics…"):
@@ -4977,8 +4999,11 @@ try:
     # PAGE 6 — Microgrid Dispatch
     # ─────────────────────────────────────────────────────────────────────────────
     elif "Microgrid" in page:
-        st.title("🔋 Microgrid & Solar Dispatch Simulator")
-        st.caption("Peak shaving via BESS (Battery Energy Storage System) + rooftop solar PV. Simulated dispatch strategy.")
+        page_heading(
+            title="Microgrid & Solar Dispatch Simulator",
+            subtitle="Peak shaving via BESS (Battery Energy Storage System) + rooftop solar PV. Simulated dispatch strategy.",
+            badge="DER Optimization",
+        )
 
         if selected_role_key == "sustainability":
             st.markdown(
@@ -5131,8 +5156,11 @@ try:
         importlib.reload(bill_mod)
         from campus_energy.analytics.billing import calculate_billing
 
-        st.title("💸 Automated Department Billing & Chargeback")
-        st.caption("Sub-meter telemetry allocated to departments — no more flat area-based splits.")
+        page_heading(
+            title="Automated Department Billing & Chargebacks",
+            subtitle="Sub-meter telemetry allocated to departments — no more flat area-based splits.",
+            badge="Accounting",
+        )
 
         if selected_role_key == "administrator":
             st.markdown(
@@ -5211,7 +5239,11 @@ try:
     # PAGE 7 — Asset Explorer
     # ─────────────────────────────────────────────────────────────────────────────
     elif "Asset Explorer" in page:
-        st.title("🔍 Asset Detail Explorer")
+        page_heading(
+            title="Asset Detail Explorer",
+            subtitle="Granular asset specifications, historical performance, and health indexes.",
+            badge="Asset Registry",
+        )
 
         # Step 14: Bring-Your-Own-Data (CSV Upload) Widget
         render_byod_upload_widget(
@@ -5377,8 +5409,11 @@ try:
         import campus_energy.dashboard.agent as agent_mod
         importlib.reload(agent_mod)
 
-        st.title("💬 AI Facility Assistant")
-        st.caption("Powered by Gemini. Analyses real telemetry, anomalies, and complaints to answer your questions.")
+        page_heading(
+            title="AI Facility Assistant",
+            subtitle="Contextual facility intelligence, telemetry diagnostics, and operational guidance.",
+            badge="Assistant",
+        )
 
         if current_role:
             st.markdown(
@@ -5534,8 +5569,11 @@ try:
             st.rerun()
 
     elif "Settings" in page:
-        st.title("⚙️ Operational Settings & System Configuration")
-        st.caption(f"Domain assumptions, electricity tariff schedules, data ingestion, and platform health · {selected_facility_label}")
+        page_heading(
+            title="Operational Settings & System Configuration",
+            subtitle=f"Domain assumptions, electricity tariff schedules, data ingestion, and platform health · {selected_facility_label}",
+            badge="Admin Settings",
+        )
 
         tab_assump, tab_tariffs, tab_byod, tab_sys = st.tabs([
             "ℹ️ Operational Assumptions",
@@ -5591,6 +5629,14 @@ try:
             st.markdown(f"- **Logged-in User:** `{current_user.name}` ({current_user.role_display})")
             st.markdown(f"- **Assigned Title:** {current_user.title}")
             st.markdown(f"- **Facility Access Scope:** {', '.join(current_user.facilities)}")
+
+            st.divider()
+            st.subheader("Developer & Design System")
+            st.caption("Inspect live enterprise UI components, color tokens, and typography scale.")
+            if st.button("🎨 Launch Component Styleguide", key="settings_launch_styleguide_btn"):
+                st.query_params["page"] = "styleguide"
+                st.session_state["selected_nav_destination"] = "Styleguide"
+                st.rerun()
 
 except Exception as page_exc:
     render_page_error_boundary(page, page_exc)

@@ -1,0 +1,554 @@
+/* ==========================================================================
+   Nivara Enterprise Facility Intelligence — Global Design System Stylesheet
+   Theme: Slate Dark Enterprise (Quiet, Dense, High-Contrast, Professional)
+   ========================================================================== */
+
+:root {
+  /* Surface & Background Tokens */
+  --nv-bg-canvas: #0f172a;        /* slate-900 */
+  --nv-bg-surface: #1e293b;       /* slate-800 */
+  --nv-bg-subtle: #334155;        /* slate-700 */
+  --nv-bg-muted: #1e293b;
+  --nv-border: #334155;           /* slate-700 */
+  --nv-border-hover: #475569;     /* slate-600 */
+  --nv-border-active: #0284c7;    /* sky-600 */
+
+  /* Text & Foreground Tokens */
+  --nv-text-primary: #f8fafc;     /* slate-50 */
+  --nv-text-secondary: #cbd5e1;   /* slate-300 */
+  --nv-text-muted: #94a3b8;       /* slate-400 */
+  --nv-text-subtle: #64748b;      /* slate-500 */
+
+  /* Accent & Brand Tokens */
+  --nv-brand-primary: #0284c7;    /* sky-600 */
+  --nv-brand-hover: #0369a1;      /* sky-700 */
+  --nv-brand-subtle: rgba(2, 132, 199, 0.15);
+
+  /* Semantic Status Tokens */
+  --nv-success: #10b981;          /* emerald-500 */
+  --nv-success-bg: rgba(16, 185, 129, 0.12);
+  --nv-success-border: #059669;
+
+  --nv-warning: #f59e0b;          /* amber-500 */
+  --nv-warning-bg: rgba(245, 158, 11, 0.12);
+  --nv-warning-border: #d97706;
+
+  --nv-danger: #ef4444;           /* red-500 */
+  --nv-danger-bg: rgba(239, 68, 68, 0.15);
+  --nv-danger-border: #dc2626;
+
+  --nv-info: #0ea5e9;             /* sky-500 */
+  --nv-info-bg: rgba(14, 165, 233, 0.12);
+  --nv-info-border: #0284c7;
+
+  --nv-verified: #6366f1;         /* indigo-500 */
+  --nv-verified-bg: rgba(99, 102, 241, 0.12);
+  --nv-verified-border: #4f46e5;
+
+  --nv-proposed: #8b5cf6;         /* violet-500 */
+  --nv-proposed-bg: rgba(139, 92, 246, 0.12);
+  --nv-proposed-border: #7c3aed;
+
+  /* Typography */
+  --nv-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --nv-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --nv-radius-sm: 4px;
+  --nv-radius-md: 6px;
+  --nv-radius-lg: 8px;
+  --nv-radius-xl: 12px;
+}
+
+/* --------------------------------------------------------------------------
+   Streamlit Layout Overrides
+   -------------------------------------------------------------------------- */
+.block-container {
+  padding-top: 1.5rem !important;
+  padding-bottom: 2rem !important;
+  max-width: 1440px !important;
+}
+
+/* Eliminate unnecessary top margin */
+div[data-testid="stVerticalBlock"] > div:first-child {
+  margin-top: 0 !important;
+}
+
+/* Typography Defaults & Tabular Numerals */
+body, .stApp {
+  font-family: var(--nv-font-sans);
+  color: var(--nv-text-primary);
+  background-color: var(--nv-bg-canvas);
+}
+
+.tabular-nums,
+[data-testid="stMetricValue"],
+.kpi-value,
+.nivara-table td.numeric,
+.chip {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-feature-settings: "tnum";
+  font-feature-settings: "tnum";
+}
+
+/* Clean Typography Scale */
+h1.nivara-heading-1, .nivara-heading-1 {
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--nv-text-primary);
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+h2.nivara-heading-2, .nivara-heading-2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #f1f5f9;
+  margin: 1.25rem 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+h3.nivara-heading-3, .nivara-heading-3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0.75rem 0 0.25rem 0;
+}
+
+.nivara-caption {
+  font-size: 0.8rem;
+  color: var(--nv-text-muted);
+  font-weight: 400;
+}
+
+/* Heading semantic badge accent */
+.heading-accent {
+  display: inline-block;
+  width: 4px;
+  height: 1.1em;
+  background: var(--nv-brand-primary);
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* --------------------------------------------------------------------------
+   12-Column Responsive Grid Utilities
+   -------------------------------------------------------------------------- */
+.nivara-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.col-1  { grid-column: span 1 / span 1; }
+.col-2  { grid-column: span 2 / span 2; }
+.col-3  { grid-column: span 3 / span 3; }
+.col-4  { grid-column: span 4 / span 4; }
+.col-5  { grid-column: span 5 / span 5; }
+.col-6  { grid-column: span 6 / span 6; }
+.col-7  { grid-column: span 7 / span 7; }
+.col-8  { grid-column: span 8 / span 8; }
+.col-9  { grid-column: span 9 / span 9; }
+.col-10 { grid-column: span 10 / span 10; }
+.col-11 { grid-column: span 11 / span 11; }
+.col-12 { grid-column: span 12 / span 12; }
+
+@media (max-width: 992px) {
+  .col-3, .col-4 { grid-column: span 6 / span 6; }
+  .col-8, .col-9 { grid-column: span 12 / span 12; }
+}
+
+@media (max-width: 640px) {
+  .col-1, .col-2, .col-3, .col-4, .col-5, .col-6,
+  .col-7, .col-8, .col-9, .col-10, .col-11, .col-12 {
+    grid-column: span 12 / span 12;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Dense, Scannable KPI Metric Cards
+   -------------------------------------------------------------------------- */
+.kpi-card {
+  background: var(--nv-bg-surface);
+  border: 1px solid var(--nv-border);
+  border-radius: var(--nv-radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100px;
+  position: relative;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi-card:hover {
+  border-color: var(--nv-border-hover);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.kpi-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--nv-text-muted);
+  line-height: 1.2;
+}
+
+.kpi-value-container {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 4px 0;
+}
+
+.kpi-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--nv-text-primary);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.kpi-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+.kpi-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--nv-radius-sm);
+  font-size: 0.74rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-delta.delta-positive {
+  background: var(--nv-success-bg);
+  color: var(--nv-success);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.kpi-delta.delta-negative {
+  background: var(--nv-danger-bg);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.kpi-delta.delta-neutral {
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--nv-text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.kpi-subtitle {
+  color: var(--nv-text-subtle);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Native Streamlit stMetric Override for Seamless Uniformity */
+div[data-testid="stMetric"] {
+  background: var(--nv-bg-surface);
+  border: 1px solid var(--nv-border);
+  border-radius: var(--nv-radius-lg);
+  padding: 12px 14px;
+  transition: border-color 0.15s ease;
+}
+
+div[data-testid="stMetric"]:hover {
+  border-color: var(--nv-border-hover);
+}
+
+div[data-testid="stMetric"] label {
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: var(--nv-text-muted) !important;
+}
+
+div[data-testid="stMetricValue"] {
+  font-size: 1.55rem !important;
+  font-weight: 700 !important;
+  color: var(--nv-text-primary) !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: -0.02em !important;
+}
+
+div[data-testid="stMetricDelta"] {
+  font-size: 0.78rem !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* --------------------------------------------------------------------------
+   Chips & Badges (Status, Severity, Service-Safe)
+   -------------------------------------------------------------------------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: var(--nv-radius-sm);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+}
+
+/* Status Chips */
+.chip-status-active {
+  background: var(--nv-success-bg);
+  border-color: var(--nv-success-border);
+  color: #34d399;
+}
+
+.chip-status-in_progress {
+  background: var(--nv-info-bg);
+  border-color: var(--nv-info-border);
+  color: #38bdf8;
+}
+
+.chip-status-done {
+  background: rgba(20, 184, 166, 0.12);
+  border-color: #0d9488;
+  color: #2dd4bf;
+}
+
+.chip-status-verified {
+  background: var(--nv-verified-bg);
+  border-color: var(--nv-verified-border);
+  color: #818cf8;
+}
+
+.chip-status-proposed {
+  background: var(--nv-proposed-bg);
+  border-color: var(--nv-proposed-border);
+  color: #a78bfa;
+}
+
+.chip-status-snoozed {
+  background: rgba(100, 116, 139, 0.12);
+  border-color: #64748b;
+  color: #94a3b8;
+}
+
+.chip-status-closed {
+  background: rgba(71, 85, 105, 0.12);
+  border-color: #475569;
+  color: #64748b;
+}
+
+/* Severity Chips */
+.chip-severity-critical {
+  background: var(--nv-danger-bg);
+  border-color: var(--nv-danger-border);
+  color: #f87171;
+}
+
+.chip-severity-high {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: #ea580c;
+  color: #fb923c;
+}
+
+.chip-severity-medium {
+  background: var(--nv-warning-bg);
+  border-color: var(--nv-warning-border);
+  color: #fbbf24;
+}
+
+.chip-severity-low {
+  background: var(--nv-info-bg);
+  border-color: var(--nv-info-border);
+  color: #38bdf8;
+}
+
+/* Service-Safe Chips */
+.chip-service-safe-pass {
+  background: var(--nv-success-bg);
+  border-color: #10b981;
+  color: #34d399;
+}
+
+.chip-service-safe-needs_review {
+  background: var(--nv-warning-bg);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.chip-service-safe-blocked {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: #f43f5e;
+  color: #fb7185;
+}
+
+/* --------------------------------------------------------------------------
+   Data Table Styling
+   -------------------------------------------------------------------------- */
+.nivara-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  background: var(--nv-bg-surface);
+  border: 1px solid var(--nv-border);
+  border-radius: var(--nv-radius-md);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.nivara-table th {
+  background: #0f172a;
+  color: var(--nv-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--nv-border);
+}
+
+.nivara-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+  color: var(--nv-text-primary);
+  line-height: 1.4;
+}
+
+.nivara-table td.numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.nivara-table tr:hover td {
+  background: rgba(51, 65, 85, 0.35);
+}
+
+.nivara-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* --------------------------------------------------------------------------
+   Empty State Box
+   -------------------------------------------------------------------------- */
+.nivara-empty-state {
+  background: var(--nv-bg-surface);
+  border: 1px dashed var(--nv-border);
+  border-radius: var(--nv-radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+  margin: 16px 0;
+}
+
+.empty-state-icon {
+  font-size: 2rem;
+  color: var(--nv-text-subtle);
+  margin-bottom: 8px;
+  display: inline-block;
+}
+
+.empty-state-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--nv-text-primary);
+  margin-bottom: 4px;
+}
+
+.empty-state-desc {
+  font-size: 0.85rem;
+  color: var(--nv-text-muted);
+  max-width: 480px;
+  margin: 0 auto 16px auto;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   Info Popover & Traceability Details
+   -------------------------------------------------------------------------- */
+.info-traceability-box {
+  background: #0f172a;
+  border: 1px solid var(--nv-border);
+  border-radius: var(--nv-radius-md);
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--nv-text-secondary);
+  margin-top: 6px;
+}
+
+.traceability-source-tag {
+  background: rgba(2, 132, 199, 0.15);
+  border: 1px solid rgba(2, 132, 199, 0.35);
+  color: #38bdf8;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   Legacy Cards & Bubbles (Non-breaking compatibility)
+   -------------------------------------------------------------------------- */
+.alert-card {
+  background: var(--nv-bg-surface);
+  border-left: 4px solid var(--nv-danger);
+  border-radius: var(--nv-radius-lg);
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  border-top: 1px solid var(--nv-border);
+  border-right: 1px solid var(--nv-border);
+  border-bottom: 1px solid var(--nv-border);
+}
+
+.alert-card.medium {
+  border-left-color: var(--nv-warning);
+}
+
+.alert-card.low {
+  border-left-color: var(--nv-info);
+}
+
+.complaint-bubble {
+  background: var(--nv-bg-surface);
+  border-radius: var(--nv-radius-lg);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border: 1px solid var(--nv-border);
+  font-size: 0.88rem;
+}
+
