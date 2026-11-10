@@ -1467,59 +1467,29 @@ if "injected_fault_banner" in st.session_state:
         unsafe_allow_html=True,
     )
 
-# ── Ask Nivara Slide-Over Panel ──
+# ── Ask Nivara Slide-Over Panel (Step UX-9) ──
 if st.session_state.get("show_ask_nivara", False):
-    with st.expander("✨ Ask Nivara — AI Facility Assistant", expanded=True):
-        col_hdr_a, col_cls_a = st.columns([6, 1])
-        with col_hdr_a:
-            st.caption(f"Role Scope: **{current_user.role_display}** · Ask questions, inspect anomalies, or request operational guidance.")
-        with col_cls_a:
-            if st.button("✖ Close", key="close_ask_nivara_panel_btn", use_container_width=True):
-                st.session_state["show_ask_nivara"] = False
-                st.rerun()
+    from campus_energy.ui.panels.ask_nivara import render_ask_nivara_panel
 
-        import campus_energy.dashboard.agent as agent_mod
-        importlib.reload(agent_mod)
-        from campus_energy.dashboard.agent import (
-            chat_with_gemini,
-            actions_to_recommendations,
-            build_system_prompt,
-        )
+    ask_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        ask_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        ask_tariff = None
 
-        if "drawer_assistant_messages" not in st.session_state:
-            st.session_state.drawer_assistant_messages = [
-                {
-                    "role": "assistant",
-                    "content": f"Hello {current_user.name}! I am Nivara, your facility intelligence assistant calibrated for {current_user.role_display} operations. How can I assist you with {selected_facility_label} today?",
-                }
-            ]
-
-        for d_msg in st.session_state.drawer_assistant_messages:
-            with st.chat_message(d_msg["role"]):
-                st.markdown(d_msg["content"])
-
-        drawer_prompt = st.chat_input("Ask Nivara about power anomalies, tariff surcharges, or maintenance...", key="drawer_ai_input")
-        if drawer_prompt:
-            st.session_state.drawer_assistant_messages.append({"role": "user", "content": drawer_prompt})
-            with st.chat_message("user"):
-                st.markdown(drawer_prompt)
-
-            with st.chat_message("assistant"):
-                with st.spinner("Analyzing operational telemetry…"):
-                    d_resp = chat_with_gemini(
-                        drawer_prompt,
-                        assets,
-                        tel,
-                        events,
-                        complaints,
-                        user_role=selected_role_key,
-                        history=st.session_state.drawer_assistant_messages[:-1],
-                    )
-                    st.markdown(d_resp)
-            st.session_state.drawer_assistant_messages.append({"role": "assistant", "content": d_resp})
-            st.rerun()
-
-    st.divider()
+    render_ask_nivara_panel(
+        current_user=current_user,
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=ask_ledger,
+        tariff=ask_tariff,
+        api_key=st.session_state.get("gemini_api_key"),
+    )
 
 # ── Map Chosen Destination to Render Page ──
 page = ""
@@ -1911,171 +1881,6 @@ try:
         )
 
 
-    # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 8 — AI Facility Assistant
-    # ─────────────────────────────────────────────────────────────────────────────
-    elif "Assistant" in page:
-        import campus_energy.dashboard.agent as agent_mod
-        importlib.reload(agent_mod)
-
-        page_heading(
-            title="AI Facility Assistant",
-            subtitle="Contextual facility intelligence, telemetry diagnostics, and operational guidance.",
-            badge="Assistant",
-        )
-
-        if current_role:
-            st.markdown(
-                f"""
-                <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
-                    <span style="font-size: 1.05rem; font-weight: 700; color: #f8fafc;">{current_role.icon} Active Persona: {current_role.name}</span>
-                    <div style="color: #94a3b8; font-size: 0.84rem; margin-top: 3px;">{current_role.description}</div>
-                    <div style="color: #38bdf8; font-size: 0.78rem; margin-top: 4px;"><b>Scope & Tone:</b> {current_role.gemini_persona_prompt}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        # API Key input
-        api_key = st.text_input(
-            "Gemini API Key (Optional — Offline Fallback Active)",
-            type="password",
-            help="Leave blank to run 100% locally with rule-based grounded intelligence, or enter a Gemini key from https://aistudio.google.com/app/apikey for live LLM reasoning."
-        )
-        if not api_key:
-            st.info("ℹ️ Running in Grounded Offline Facility Intelligence Mode. Generates deterministic, calibrated facility actions directly from live telemetry, active alerts, and the Service Guard.")
-
-        # Quick prompts adapted to persona
-        st.markdown("**Quick Prompts:**")
-        qp_cols = st.columns(4)
-        if selected_role_key == "administrator":
-            quick_prompts = [
-                "Summarize campus operating costs and peak tariff risk.",
-                "Which department has highest cost allocation variance?",
-                "What is total verified financial ROI in ledger?",
-                "Which high-payback energy actions need executive sign-off?",
-            ]
-        elif selected_role_key == "operations":
-            quick_prompts = [
-                "What are the most critical equipment anomalies right now?",
-                "Which active work orders are closest to SLA breach?",
-                "Explain root cause of latest HVAC anomaly ('Why?').",
-                "Show me recommendations blocked by the Service Guard.",
-            ]
-        elif selected_role_key == "sustainability":
-            quick_prompts = [
-                "What is our BEE Star Rating & ECBC compliance status?",
-                "How are we tracking against NAPCC 20% carbon budget?",
-                "Summarize cumulative verified Scope 2 GHG abatement.",
-                "What is solar PV utilization & BESS dispatch impact?",
-            ]
-        else:
-            quick_prompts = [
-                "What are the most critical energy anomalies right now?",
-                "Which department is wasting the most energy?",
-                "How can we reduce peak demand tomorrow?",
-                "Summarise the last 24 hours of campus energy performance.",
-            ]
-        for i, qp in enumerate(quick_prompts):
-            if qp_cols[i].button(qp[:30] + "…", key=f"qp_{i}", use_container_width=True):
-                st.session_state["pending_prompt"] = qp
-
-        st.divider()
-
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-        if "action_log" not in st.session_state:
-            st.session_state["action_log"] = []
-
-        for msg in st.session_state.messages:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-
-        # Pending Actions panel ABOVE the chat input
-        st.subheader("📋 Pending Action Queue")
-        render_service_guard_demo_expander(facility_meta, expanded=(selected_role_key == "operations"))
-        if st.session_state["action_log"]:
-            action_df = pd.DataFrame(st.session_state["action_log"])
-            cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_kwh", "status", "detected_at"]
-            for c in cols:
-                if c not in action_df.columns:
-                    action_df[c] = None
-
-            # Add standardized savings range column
-            action_df["estimated_saving_range"] = action_df["estimated_saving_kwh"].apply(
-                lambda v: f"{float(v):.1f} kWh [{float(v)*0.8:.1f} – {float(v)*1.2:.1f}]"
-                if v is not None and not pd.isna(v)
-                else "25.0 kWh [20.0 – 30.0]"
-            )
-            display_cols = ["action_type", "target_asset", "suggested_time", "estimated_saving_range", "status", "detected_at"]
-            st.dataframe(action_df[display_cols], use_container_width=True)
-            st.caption("⚠️ Decision-support estimate, not an official measurement.")
-
-            st.markdown("#### 🛡️ Service-Impact Guard Verification & Action Cards")
-            guarded_recs = agent_mod.actions_to_recommendations(st.session_state["action_log"], facility_meta)
-            app_acts, blk_acts = apply_service_guard(guarded_recs, facility_meta)
-
-            if app_acts:
-                st.markdown(f"##### 🟢 Approved Service-Safe Actions ({len(app_acts)})")
-                for rec in app_acts:
-                    render_recommendation_card(rec)
-
-            if blk_acts:
-                st.markdown(f"##### 🛡️ Blocked by Service-Impact Guard ({len(blk_acts)})")
-                for rec in blk_acts:
-                    render_recommendation_card(rec)
-        else:
-            st.caption("No actions detected yet. Ask the AI assistant a question to generate recommendations.")
-            st.caption("⚠️ Decision-support estimate, not an official measurement.")
-
-        if st.button("🗑️ Clear Action Queue"):
-            st.session_state["action_log"] = []
-            st.rerun()
-
-        # Handle quick prompt or typed prompt
-        user_input = st.chat_input("Ask anything about campus energy…")
-        if "pending_prompt" in st.session_state:
-            user_input = st.session_state.pop("pending_prompt")
-
-        if user_input:
-            st.session_state.messages.append({"role": "user", "content": user_input})
-            with st.chat_message("user"):
-                st.markdown(user_input)
-
-            with st.chat_message("assistant"):
-                with st.spinner("Analysing campus data…"):
-                    active_recs = None
-                    if "guarded_recs" in locals():
-                        active_recs = guarded_recs
-                    elif "action_log" in st.session_state and st.session_state["action_log"]:
-                        active_recs = agent_mod.actions_to_recommendations(st.session_state["action_log"], facility_meta)
-
-                    response = agent_mod.chat_with_gemini(
-                        api_key=api_key,
-                        messages=st.session_state.messages,
-                        events_df=events,
-                        assets_df=assets,
-                        complaints_df=complaints,
-                        active_role=selected_role_key,
-                        recommendations=active_recs,
-                        profile=facility_meta,
-                    )
-                st.markdown(response)
-
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-            # Parse actions and update action_log
-            new_actions = agent_mod.parse_actions_from_response(response)
-            existing_types = {a["action_type"] for a in st.session_state["action_log"]}
-            for act in new_actions:
-                if act["action_type"] not in existing_types:
-                    st.session_state["action_log"].append(act)
-                    existing_types.add(act["action_type"])
-            st.rerun()
-
-        if st.button("🗑️ Clear Chat"):
-            st.session_state.messages = []
-            st.rerun()
 
     elif "Settings" in page:
         from campus_energy.ui.views.settings import render_settings
