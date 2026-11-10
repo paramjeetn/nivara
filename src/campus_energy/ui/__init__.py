@@ -15,6 +15,7 @@ from campus_energy.ui.components import (
 )
 from campus_energy.ui.top_bar import render_top_bar
 from campus_energy.ui.login import render_login_screen
+from campus_energy.ui.views.alerts_work import render_alerts_work
 
 __all__ = [
     "load_global_styles",
@@ -32,4 +33,5 @@ __all__ = [
     "page_heading",
     "render_top_bar",
     "render_login_screen",
+    "render_alerts_work",
 ]
