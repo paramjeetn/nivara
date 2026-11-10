@@ -1766,12 +1766,53 @@ if chosen_dest == "Home":
         """,
         unsafe_allow_html=True,
     )
+    p_home_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_home_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_home_tariff = None
+
     if selected_role_key == "operations":
-        page = "🚨  Alerts & Work"
+        from campus_energy.ui.views.home_operations import render_home_operations
+        render_home_operations(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_home_ledger,
+            tariff=p_home_tariff,
+            current_user=current_user,
+        )
     elif selected_role_key == "sustainability":
-        page = "🏛️  Governance & Policy"
+        from campus_energy.ui.views.home_sustainability import render_home_sustainability
+        render_home_sustainability(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_home_ledger,
+            tariff=p_home_tariff,
+            current_user=current_user,
+        )
     else:
-        page = "📊  Executive Overview"
+        from campus_energy.ui.views.home_admin import render_home_admin
+        render_home_admin(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_home_ledger,
+            tariff=p_home_tariff,
+            current_user=current_user,
+        )
+    st.stop()
 
 elif chosen_dest == "Alerts & Work":
     page = "🚨  Alerts & Work"
