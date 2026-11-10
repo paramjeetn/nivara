@@ -46,10 +46,11 @@ from campus_energy.demo.inject import (
     get_fault_presets,
     inject_live_fault,
 )
-from campus_energy.demo.tour import (
-    GuidedTour,
-    get_default_tour,
-    get_tour_step_info,
+from campus_energy.storage.seed import (
+    get_seed_activity_feed,
+    get_seed_alert_statuses,
+    get_seed_alerts,
+    seed_operational_history,
 )
 from campus_energy.adapters import (
     DataIngestionError,
@@ -247,6 +248,8 @@ def get_or_create_savings_ledger(
     key = f"savings_ledger_{fac_id}"
     if key not in st.session_state:
         ledger = SavingsLedger()
+        # Seed realistic lived-in operational history (3 verified work orders with IPMVP Option B)
+        seed_operational_history(ledger, facility_id=fac_id)
         if events_or_alerts is not None:
             has_items = len(events_or_alerts) > 0 if not isinstance(events_or_alerts, pd.DataFrame) else not events_or_alerts.empty
             if has_items:
@@ -260,291 +263,6 @@ def get_or_create_savings_ledger(
         st.session_state[key] = ledger
     st.session_state["savings_ledger"] = st.session_state[key]
     return st.session_state[key]
-
-
-def render_service_guard_demo_expander(facility_profile: Any, expanded: bool = False):
-    """Render the dedicated '🛡️ Blocked by Service Guard (Jury Demo Moment)' expander."""
-    with st.expander("🛡️ Blocked by Service Guard (Jury Demo Moment)", expanded=expanded):
-        st.markdown(
-            """
-            > **The Nivara Safety Principle:** Energy efficiency optimization must **never** compromise
-            > human life, clinical safety, critical cold chains, research continuity, or occupant thermal comfort standards.
-            """
-        )
-
-        fac_id = getattr(facility_profile, "facility_id", "university") if not isinstance(facility_profile, dict) else facility_profile.get("key", "university")
-        if fac_id in ("hospital", "district_hospital"):
-            demo_candidates = [
-                Recommendation(
-                    id="DEMO-BLK-01",
-                    facility_id="district_hospital",
-                    type="peak_shaving",
-                    target="EQ-IPD-ICU-EQ",
-                    action_text="Curtail ICU life-support monitor and ventilator power by 30% during grid peak tariff surcharge.",
-                    trigger="grid_peak_tariff_spike",
-                    savings=SavingsBundle.from_expected(45.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-02",
-                    facility_id="district_hospital",
-                    type="equipment_shutdown",
-                    target="EQ-IPD-CCR-AC",
-                    action_text="Shut down cold chain vaccine refrigeration compressor for 2 hours to avoid demand penalty.",
-                    trigger="demand_limit_threshold",
-                    savings=SavingsBundle.from_expected(32.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-03",
-                    facility_id="district_hospital",
-                    type="setpoint_adjustment",
-                    target="EQ-IPD-GW-AC",
-                    action_text="Raise Inpatient General Ward AC setpoint to 29°C during afternoon visiting hours.",
-                    trigger="cooling_demand_surge",
-                    savings=SavingsBundle.from_expected(50.0),
-                    owner_role="operations",
-                ),
-            ]
-            demo_contexts = {
-                "DEMO-BLK-03": {"proposed_temp_c": 29.0, "occupancy": 40, "humidity_pct": 55.0}
-            }
-        elif fac_id in ("industrial", "industrial_campus"):
-            demo_candidates = [
-                Recommendation(
-                    id="DEMO-BLK-01",
-                    facility_id="industrial_campus",
-                    type="peak_shaving",
-                    target="EQ-PRC-L1-DRV",
-                    action_text="Curtail main continuous process line drives by 40% during peak tariff window.",
-                    trigger="tariff_tou_peak",
-                    savings=SavingsBundle.from_expected(120.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-02",
-                    facility_id="industrial_campus",
-                    type="equipment_shutdown",
-                    target="EQ-UTL-FUM-EXH",
-                    action_text="Shut down toxic fume and solvent extraction exhaust fans during night shift to save energy.",
-                    trigger="off_peak_optimization",
-                    savings=SavingsBundle.from_expected(45.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-03",
-                    facility_id="industrial_campus",
-                    type="lighting_curtailment",
-                    target="EQ-MFG-SH1-LT",
-                    action_text="Turn off primary bay lighting in Sheet Metal Fab shop floor during active shift.",
-                    trigger="demand_cap_exceeded",
-                    savings=SavingsBundle.from_expected(28.0),
-                    owner_role="operations",
-                ),
-            ]
-            demo_contexts = {
-                "DEMO-BLK-03": {"occupancy": 35, "is_occupied": True}
-            }
-        else:
-            demo_candidates = [
-                Recommendation(
-                    id="DEMO-BLK-01",
-                    facility_id=str(fac_id),
-                    type="setpoint_adjustment",
-                    target="BLD-A-CR101",
-                    action_text="Raise Classroom 101 AC setpoint to 28.5°C during active lecture hours to shave chiller load.",
-                    trigger="chiller_peak_demand",
-                    savings=SavingsBundle.from_expected(60.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-02",
-                    facility_id=str(fac_id),
-                    type="lighting_curtailment",
-                    target="BLD-A-CR101-LT",
-                    action_text="Shut off primary lighting in Classroom 101 during scheduled class hours.",
-                    trigger="demand_target_exceeded",
-                    savings=SavingsBundle.from_expected(25.0),
-                    owner_role="operations",
-                ),
-                Recommendation(
-                    id="DEMO-BLK-03",
-                    facility_id=str(fac_id),
-                    type="peak_shaving",
-                    target="EQ-BLD-ADM-SR-AC",
-                    action_text="Curtail Campus Data Center & Server Room precision cooling by 50% during peak grid window.",
-                    trigger="campus_peak_shaving",
-                    savings=SavingsBundle.from_expected(80.0),
-                    owner_role="operations",
-                ),
-            ]
-            demo_contexts = {
-                "DEMO-BLK-01": {"proposed_temp_c": 28.5, "occupancy": 45, "humidity_pct": 50.0},
-                "DEMO-BLK-02": {"occupancy": 45, "scheduled_occupancy": 50, "is_occupied": True},
-            }
-
-        st.caption("The engine actively intercepts dangerous curtailment proposals before they can be dispatched:")
-        for cand in demo_candidates:
-            c_ctx = demo_contexts.get(cand.id)
-            g_res = check_service_guard(cand, facility_profile, c_ctx)
-            st.markdown(
-                f"""
-                <div style="background:#1e293b; border-left:4px solid #ef4444; border-radius:6px; padding:10px 14px; margin-bottom:10px; border:1px solid #334155;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:700; color:#f8fafc; font-size:0.92rem;">🚫 Blocked Action: {cand.action_text}</span>
-                        <span style="background:#450a0a; color:#f87171; border:1px solid #ef4444; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:600;">
-                            BLOCKED ({g_res.constraints_checked[-1] if g_res.constraints_checked else 'service_guard'})
-                        </span>
-                    </div>
-                    <div style="color:#fca5a5; font-size:0.83rem; margin-top:5px; line-height:1.4;">
-                        <b>Constraint Rationale:</b> {g_res.reason}
-                    </div>
-                    <div style="color:#38bdf8; font-size:0.83rem; margin-top:5px; line-height:1.4;">
-                        <b>💡 AI Safe Alternative:</b> {g_res.safe_alternative}
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-def render_fault_injection_studio(assets_df: pd.DataFrame, telemetry_df: pd.DataFrame, facility_profile: Any, is_tour_mode: bool = False):
-    """Render the Dedicated Live Fault Injector Widget for interactive jury demonstrations."""
-    presets = get_fault_presets()
-    fault_keys = list(presets.keys())
-
-    with st.container():
-        st.markdown(
-            """
-            <div style="background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%); border: 2px solid #818cf8; border-radius: 10px; padding: 14px 18px; margin-bottom: 16px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <span style="font-weight: 700; color: #a5b4fc; font-size: 1.05rem;">
-                        ⚡ Live Fault Injection Studio (Jury Demo Engine)
-                    </span>
-                    <span style="background: #312e81; color: #c7d2fe; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">
-                        Step 2 Canonical Testbed
-                    </span>
-                </div>
-                <div style="color: #94a3b8; font-size: 0.82rem; margin-bottom: 4px;">
-                    Inject a physical or electrical anomaly into the live telemetry stream to demonstrate instantaneous consensus detection, safety guard certification, and CMMS dispatch.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        fc1, fc2, fc3 = st.columns([3, 3, 2])
-        with fc1:
-            sel_fault = st.selectbox(
-                "🚨 Select Canonical Fault Scenario",
-                fault_keys,
-                format_func=lambda k: f"{presets[k]['icon']} {presets[k]['title']}",
-                key="studio_sel_fault",
-                help="Pick from the 5 canonical failure modes.",
-            )
-
-        fault_meta = presets[sel_fault]
-
-        # Filter candidate assets based on fault type
-        if sel_fault == "lights_left_on":
-            cand_assets = assets_df[assets_df["asset_type"] == "lighting"]
-            if cand_assets.empty:
-                cand_assets = assets_df[assets_df["monitoring_level"] == "equipment"]
-        elif sel_fault == "pump_no_flow":
-            cand_assets = assets_df[assets_df["asset_type"] == "pump"]
-            if cand_assets.empty:
-                cand_assets = assets_df
-        elif sel_fault == "pipe_leak_overnight":
-            cand_assets = assets_df[assets_df["asset_type"].isin(["pump", "meter"])]
-            if cand_assets.empty:
-                cand_assets = assets_df
-        elif sel_fault == "pf_drop":
-            cand_assets = assets_df[assets_df["asset_type"] == "meter"]
-            if cand_assets.empty:
-                cand_assets = assets_df
-        else:
-            cand_assets = assets_df
-
-        if cand_assets.empty:
-            cand_assets = assets_df
-
-        asset_options = list(cand_assets["asset_id"].unique())
-
-        with fc2:
-            sel_asset = st.selectbox(
-                f"🎯 Target Asset ({len(asset_options)} available)",
-                asset_options,
-                format_func=lambda aid: f"{aid} ({assets_df.loc[assets_df['asset_id']==aid, 'asset_name'].iloc[0] if (assets_df['asset_id']==aid).any() and 'asset_name' in assets_df.columns else aid})",
-                key="studio_sel_asset",
-            )
-
-        with fc3:
-            dur_hrs = st.number_input(
-                "Duration (hrs)",
-                min_value=0.5,
-                max_value=24.0,
-                value=float(fault_meta["default_duration_hours"]),
-                step=0.5,
-                key="studio_dur_hrs",
-            )
-
-        st.caption(f"ℹ️ **Scenario Details:** {fault_meta['description']} · *Expected Detector:* `{fault_meta['expected_detection']}`")
-
-        btn_c1, btn_c2 = st.columns([3, 1])
-        with btn_c1:
-            if st.button("🚨 Inject Live Fault Now", type="primary", use_container_width=True, key="studio_inject_btn"):
-                t_start = time.perf_counter()
-                mod_tel, event = inject_live_fault(
-                    telemetry_df=telemetry_df,
-                    fault_type=sel_fault,
-                    asset_id=sel_asset,
-                    duration_hours=dur_hrs,
-                )
-                latency_ms = (time.perf_counter() - t_start) * 1000.0
-
-                st.session_state["injected_telemetry"] = mod_tel
-                st.session_state["last_injected_event"] = event
-                st.session_state["injected_fault_banner"] = {
-                    "title": fault_meta["title"],
-                    "fault_type": sel_fault,
-                    "asset_id": sel_asset,
-                    "event_id": event.event_id,
-                    "latency_ms": latency_ms,
-                    "desc": fault_meta["description"],
-                }
-
-                # Trigger automated notification dispatch for this fault
-                notif_router = get_notification_router()
-                probe_msg = NotificationMessage(
-                    recipient_role="operations",
-                    severity="critical" if event.severity.value in ("critical", "high") else "high",
-                    title=f"🚨 CRITICAL ALERT: {fault_meta['title']} on {sel_asset}",
-                    asset_id=sel_asset,
-                    description=f"Nivara anomaly engine detected live fault: {fault_meta['description']}. Event ID: {event.event_id}.",
-                    impact_range="₹2,400 [₹1,920 – ₹2,880] / day",
-                    service_guard_note="🟢 Service-Safe: Non-critical load (verified)",
-                )
-                notif_router.dispatch(probe_msg)
-
-                tour = get_default_tour()
-                tour.set_injected_event_id(event.event_id)
-                tour.set_reaction_latency_ms(latency_ms)
-
-                if is_tour_mode or st.session_state.get("guided_tour_active", False):
-                    st.session_state["guided_tour_step"] = 3
-                    st.session_state["selected_nav_page"] = "🚨  Alerts & NLP"
-
-                st.success(f"Fault injected! Reaction latency: {latency_ms:.1f}ms. Auto-advancing to Anomaly Consensus...")
-                st.rerun()
-
-        with btn_c2:
-            if st.button("↺ Reset Faults", use_container_width=True, key="studio_reset_btn"):
-                st.session_state.pop("injected_telemetry", None)
-                st.session_state.pop("last_injected_event", None)
-                st.session_state.pop("injected_fault_banner", None)
-                clear_fault_registry()
-                st.info("Injected faults cleared.")
-                st.rerun()
 
 
 def render_byod_upload_widget(
@@ -1273,7 +991,65 @@ if data is None:
 
 assets, tel, ctx, events, complaints = data
 
-# Overlay Live Injected Telemetry and Events if Active
+# ── Seed Lived-In Operational History & Statuses ──
+if "alert_statuses" not in st.session_state:
+    st.session_state["alert_statuses"] = get_seed_alert_statuses()
+
+# Ensure canonical seed alerts are merged into events for lived-in operational triage
+seed_alerts_list = get_seed_alerts()
+for sa in seed_alerts_list:
+    if not (events["event_id"] == sa["alert_id"]).any():
+        sa_row = {
+            "event_id": sa["alert_id"],
+            "event_type": sa["anomaly_type"],
+            "asset_id": sa["asset_id"],
+            "start_time": sa["start_time"],
+            "end_time": sa["end_time"],
+            "severity": sa["severity"],
+            "description": sa["description"],
+            "injection_parameters": {},
+        }
+        events = pd.concat([events, pd.DataFrame([sa_row])], ignore_index=True)
+
+# Overlay Live Injected Telemetry and Events from Presenter Sidecar or Session
+shared_fault_file = Path("data/live_fault_injection.json")
+if shared_fault_file.exists():
+    try:
+        with open(shared_fault_file, "r", encoding="utf-8") as f:
+            sf_data = json.load(f)
+        if sf_data.get("active", False):
+            sf_eid = sf_data.get("event_id")
+            if "applied_shared_fault_id" not in st.session_state or st.session_state["applied_shared_fault_id"] != sf_eid:
+                mod_tel, _ = inject_live_fault(
+                    telemetry_df=tel,
+                    fault_type=sf_data["fault_type"],
+                    asset_id=sf_data["asset_id"],
+                    duration_hours=float(sf_data.get("duration_hours", 4.0)),
+                )
+                st.session_state["applied_shared_fault_id"] = sf_eid
+                st.session_state["shared_injected_telemetry"] = mod_tel
+                tel = mod_tel
+            elif "shared_injected_telemetry" in st.session_state:
+                tel = st.session_state["shared_injected_telemetry"]
+
+            sf_evt_dict = {
+                "event_id": sf_eid,
+                "event_type": sf_data.get("fault_type"),
+                "asset_id": sf_data.get("asset_id"),
+                "start_time": sf_data.get("start_time"),
+                "end_time": sf_data.get("end_time"),
+                "severity": sf_data.get("severity", "high"),
+                "description": sf_data.get("description"),
+                "injection_parameters": sf_data.get("injection_parameters", {}),
+            }
+            if not (events["event_id"] == sf_eid).any():
+                events = pd.concat([pd.DataFrame([sf_evt_dict]), events], ignore_index=True)
+        else:
+            st.session_state.pop("applied_shared_fault_id", None)
+            st.session_state.pop("shared_injected_telemetry", None)
+    except Exception as e:
+        logger.debug("Shared fault file check: %s", e)
+
 if "injected_telemetry" in st.session_state:
     tel = st.session_state["injected_telemetry"]
 if "last_injected_event" in st.session_state:
@@ -1292,7 +1068,13 @@ if "last_injected_event" in st.session_state:
         events = pd.concat([pd.DataFrame([evt_dict]), events], ignore_index=True)
 
 latest_ts = tel["timestamp"].max()
-open_alerts_count = len(events)
+# Compute true active alerts count respecting snoozed/resolved status
+current_alert_statuses = st.session_state.get("alert_statuses", {})
+active_mask = [
+    current_alert_statuses.get(str(r.get("event_id") or r.get("alert_id")), {}).get("status", "active") == "active"
+    for _, r in events.iterrows()
+]
+open_alerts_count = sum(active_mask)
 
 # Helper functions
 def severity_color(sev: str) -> str:
@@ -1440,32 +1222,7 @@ with st.sidebar:
     st.caption("📍 **Nivara Enterprise v2.4**")
     st.caption("BPUT Central Intelligence System")
 
-# Active Fault Notification Banner (if simulated/injected fault is active)
-if "injected_fault_banner" in st.session_state:
-    b = st.session_state["injected_fault_banner"]
-    st.markdown(
-        f"""
-        <div style="background: rgba(239, 68, 68, 0.15); border: 2px solid #ef4444; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 700; color: #ef4444; font-size: 1.05rem;">
-                    🚨 LIVE FAULT ACTIVE: {b['title']}
-                </span>
-                <span style="background: #991b1b; color: #fecaca; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
-                    ⚡ Detection Latency: {b['latency_ms']:.1f}ms
-                </span>
-            </div>
-            <div style="color: #cbd5e1; font-size: 0.88rem; margin-top: 6px;">
-                <b>Target Asset:</b> <code>{b['asset_id']}</code> &nbsp;|&nbsp; 
-                <b>Event ID:</b> <code>{b['event_id']}</code> &nbsp;|&nbsp; 
-                <b>Consensus Engine:</b> <span style="color: #34d399; font-weight: 600;">Confirmed (Triple-Engine)</span>
-            </div>
-            <div style="color: #94a3b8; font-size: 0.82rem; margin-top: 4px;">
-                {b['desc']}
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+
 
 # ── Ask Nivara Slide-Over Panel (Step UX-9) ──
 if st.session_state.get("show_ask_nivara", False):

@@ -14,7 +14,7 @@ run:
 	$(STREAMLIT) run src/campus_energy/dashboard/app.py
 
 demo:
-	$(STREAMLIT) run src/campus_energy/dashboard/app.py -- --demo
+	$(PYTHON) scripts/launch_demo.py
 
 eval:
 	$(PYTHON) -m campus_energy.eval.run_all
