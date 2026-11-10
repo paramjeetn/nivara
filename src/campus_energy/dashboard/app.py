@@ -1424,157 +1424,93 @@ def load_water_data(data_dir_str: str, assets: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Load — with Facility Switcher
+# User Authentication & Shell Layout (Step UX-2)
 # ─────────────────────────────────────────────────────────────────────────────
-# Facility switcher lives at the very top of the sidebar (before page nav)
-with st.sidebar:
-    st.markdown("### ⚡ Nivara — Facility Intelligence")
-    st.caption("India-wide Resource Intelligence Platform")
-    st.divider()
+from campus_energy.users import UserProfile, authenticate_user, load_users, get_demo_users
+from campus_energy.ui.top_bar import render_top_bar
+from campus_energy.ui.login import render_login_screen
 
-    # ── One-Command Demo Mode Preset (CLI: --demo or NIVARA_DEMO_TOUR=1) ──
-    if ("--demo" in sys.argv or os.environ.get("NIVARA_DEMO_TOUR") == "1") and "demo_tour_initialized" not in st.session_state:
-        st.session_state["guided_tour_active"] = True
-        st.session_state["guided_tour_step"] = 1
-        st.session_state["selected_nav_page"] = "📊  Executive Overview"
-        st.session_state["demo_tour_initialized"] = True
+_qp = st.query_params
 
-    # ── Step 13: Prominent Guided Jury Tour Toggle ──
-    st.markdown("### 🎬 Guided Jury Tour")
-    tour_active = st.toggle(
-        "🎬 Start Guided Tour (2-Min Flow)",
-        value=st.session_state.get("guided_tour_active", False),
-        key="guided_tour_toggle",
-        help="Activate curated 6-step walkthrough designed for hackathon jury evaluation.",
-    )
-    if tour_active != st.session_state.get("guided_tour_active", False):
-        st.session_state["guided_tour_active"] = tour_active
-        if tour_active:
-            st.session_state["guided_tour_step"] = 1
-            st.session_state["selected_nav_page"] = "📊  Executive Overview"
-        st.rerun()
+# Allow query-param deep-link authentication (?user=admin or ?user=usr_ops_01)
+if "user" not in st.session_state or st.session_state.get("user") is None:
+    if "user" in _qp:
+        _u = authenticate_user(_qp.get("user"))
+        if _u:
+            st.session_state["user"] = _u
+            st.session_state["active_persona_key"] = _u.role
+            st.session_state["current_facility"] = _u.default_facility
 
-    if st.session_state.get("guided_tour_active", False):
-        cur_tour_step = st.session_state.get("guided_tour_step", 1)
-        cur_info = get_tour_step_info(cur_tour_step)
-        st.markdown(
-            f"""
-            <div style="background: #1e1b4b; border: 1px solid #6366f1; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; font-size: 0.78rem;">
-                <span style="color: #a5b4fc; font-weight: 700;">Step {cur_tour_step} of 6:</span>
-                <span style="color: #f8fafc; font-weight: 600;"> {cur_info['short_name']}</span>
-                <div style="color: #94a3b8; font-size: 0.72rem; margin-top: 2px;">Target: {cur_info['target_page']}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+# If not authenticated, render clean login stub card and halt
+if "user" not in st.session_state or st.session_state.get("user") is None:
+    render_login_screen()
+    if "user" not in st.session_state or st.session_state.get("user") is None:
+        # Bare mode import handling (e.g. pytest importing app)
+        st.session_state["user"] = authenticate_user("admin")
+    st.stop()
 
-    st.divider()
+current_user: UserProfile = st.session_state.get("user") or authenticate_user("admin")
+selected_role_key = current_user.role
+st.session_state["active_persona_key"] = selected_role_key
 
-    selected_facility_label = st.selectbox(
-        "🏢 Facility",
-        list(FACILITY_OPTIONS.keys()),
-        index=0,
-        help="Switch between facility types to load their separate simulated dataset.",
-    )
+# ── Deep-Linking URL Synchronization ──
+if "facility" in _qp:
+    _fac_param = _qp.get("facility")
+    if any((isinstance(m, dict) and m.get("key") == _fac_param) or getattr(m, "key", None) == _fac_param for m in FACILITY_OPTIONS.values()):
+        if current_user.has_facility_access(_fac_param):
+            st.session_state["current_facility"] = _fac_param
+
+if "current_facility" not in st.session_state:
+    st.session_state["current_facility"] = current_user.default_facility
+
+if "range" in _qp:
+    _r_param = _qp.get("range", "").replace("_", " ").title()
+    if _r_param in ["Today", "7 Days", "28 Days", "Custom"]:
+        st.session_state["time_range"] = _r_param
+if "time_range" not in st.session_state:
+    st.session_state["time_range"] = "Today"
+
+if "asset" in _qp:
+    st.session_state["selected_asset_id"] = _qp.get("asset")
+
+if "alert_id" in _qp:
+    st.session_state["selected_alert_id"] = _qp.get("alert_id")
+
+# Match active facility
+current_facility_key = st.session_state.get("current_facility", current_user.default_facility)
+if not current_user.has_facility_access(current_facility_key):
+    current_facility_key = current_user.default_facility
+    st.session_state["current_facility"] = current_facility_key
+
+selected_facility_label = None
+facility_meta = None
+for lbl, meta in FACILITY_OPTIONS.items():
+    m_key = meta["key"] if isinstance(meta, dict) else getattr(meta, "key", "")
+    if m_key == current_facility_key:
+        selected_facility_label = lbl
+        facility_meta = meta
+        break
+
+if facility_meta is None:
+    selected_facility_label = list(FACILITY_OPTIONS.keys())[0]
     facility_meta = FACILITY_OPTIONS[selected_facility_label]
-    facility_type = facility_meta["key"]
-    floor_area_m2 = facility_meta["floor_area_m2"]
+    current_facility_key = facility_meta["key"] if isinstance(facility_meta, dict) else getattr(facility_meta, "key", "university")
+    st.session_state["current_facility"] = current_facility_key
 
-    # Show generate hint if data missing
-    fac_data_dir = facility_meta["data_dir"]
-    if not (fac_data_dir / "telemetry.csv").exists():
-        conf_hint = facility_meta.get("config", f"configs/{facility_type}.yaml")
-        st.warning(
-            f"⚠️ No data for this facility yet.\n\n"
-            f"Run:\n```\ngenerate-data --config {conf_hint} --output-dir {fac_data_dir}\n```"
-        )
+facility_type = facility_meta["key"] if isinstance(facility_meta, dict) else getattr(facility_meta, "key", "university")
+floor_area_m2 = facility_meta["floor_area_m2"] if isinstance(facility_meta, dict) else getattr(facility_meta, "floor_area_m2", 12000)
+fac_data_dir = facility_meta["data_dir"] if isinstance(facility_meta, dict) else getattr(facility_meta, "data_dir", Path("data/generated"))
 
-    st.caption(f"📍 {facility_meta['location']} · {floor_area_m2:,} m² · {facility_meta['peak_occupancy']:,} peak occupancy")
-    compliance_frameworks = getattr(facility_meta, "compliance_frameworks", []) or ["BEE Star Rating", "ECBC 2017"]
-    protected_loads_list = getattr(facility_meta, "protected_loads", [])
-    st.caption(f"🛡️ Protected Loads: **{len(protected_loads_list)} non-curtailable**")
-    st.caption(f"📜 Compliance: **{', '.join(compliance_frameworks)}**")
-    notif_router = get_notification_router()
-    gw_status = notif_router.get_gateway_status()
-    st.caption(f"{gw_status['status_badge']}")
-    st.divider()
-
-    # ── Step 12: Role-Based Views & Personas ──
-    from campus_energy.roles import load_roles, get_role
-    try:
-        roles = load_roles("config/roles.yaml")
-    except Exception:
-        try:
-            roles = load_roles("configs/roles.yaml")
-        except Exception:
-            roles = {}
-
-    selected_role_key = st.sidebar.selectbox(
-        "👤 Persona View",
-        ["administrator", "operations", "sustainability"],
-        format_func=lambda k: f"{roles[k].icon} {roles[k].name}" if k in roles else k.capitalize(),
-        help="Tailor dashboard priority, KPI emphasis, and AI assistant scope to your operational role.",
-    )
-    current_role = roles.get(selected_role_key)
-
-    if current_role:
-        st.sidebar.markdown(
-            f"""
-            <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 6px; padding: 8px 12px; margin-top: 2px; margin-bottom: 12px; font-size: 0.80rem; color: #cbd5e1;">
-                <div style="font-weight: 600; color: #f8fafc; margin-bottom: 2px;">{current_role.icon} {current_role.name}</div>
-                <div style="line-height: 1.3; color: #94a3b8; font-size: 0.75rem;">{current_role.description}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    st.divider()
-
-    nav_pages = [
-        "📊  Executive Overview",
-        "🏛️  Governance & Policy",
-        "🗺️  3D Campus Map",
-        "🤖  AI Forecasting",
-        "🚨  Alerts & NLP",
-        "💧  Water Intelligence",
-        "🔋  Microgrid Dispatch",
-        "💸  Department Billing",
-        "🔍  Asset Explorer",
-        "💬  AI Assistant",
-    ]
-
-    default_target_page = current_role.default_page if current_role else nav_pages[0]
-
-    if "active_persona_key" not in st.session_state:
-        st.session_state["active_persona_key"] = selected_role_key
-        st.session_state["selected_nav_page"] = default_target_page
-    elif st.session_state["active_persona_key"] != selected_role_key:
-        st.session_state["active_persona_key"] = selected_role_key
-        st.session_state["selected_nav_page"] = default_target_page
-
-    page_idx = 0
-    if "selected_nav_page" in st.session_state and st.session_state["selected_nav_page"] in nav_pages:
-        page_idx = nav_pages.index(st.session_state["selected_nav_page"])
-
-    page = st.radio(
-        "Navigate",
-        nav_pages,
-        index=page_idx,
-        label_visibility="collapsed",
-    )
-    st.session_state["selected_nav_page"] = page
-
-    st.divider()
-
-data = load_data(str(facility_meta["data_dir"]))
+data = load_data(str(fac_data_dir))
 if data is None:
     st.error(f"⚠️  No data found for **{selected_facility_label}**.")
-    st.info(f"Generate it with:\n```\ngenerate-data --config {facility_meta['config']} --output-dir {fac_data_dir}\n```")
+    conf_hint = facility_meta.get("config", f"configs/{facility_type}.yaml") if isinstance(facility_meta, dict) else getattr(facility_meta, "config", f"configs/{facility_type}.yaml")
+    st.info(f"Generate it with:\n```\ngenerate-data --config {conf_hint} --output-dir {fac_data_dir}\n```")
     st.stop()
 
 assets, tel, ctx, events, complaints = data
 
-# Step 13: Overlay Live Injected Telemetry and Events if Active
+# Overlay Live Injected Telemetry and Events if Active
 if "injected_telemetry" in st.session_state:
     tel = st.session_state["injected_telemetry"]
 if "last_injected_event" in st.session_state:
@@ -1593,210 +1529,137 @@ if "last_injected_event" in st.session_state:
         events = pd.concat([pd.DataFrame([evt_dict]), events], ignore_index=True)
 
 latest_ts = tel["timestamp"].max()
+open_alerts_count = len(events)
 
-import campus_energy.replay.live_feed as live_feed_mod
-importlib.reload(live_feed_mod)
-from campus_energy.replay.live_feed import get_live_telemetry_window, get_telemetry_feed_stats
-
-with st.sidebar:
-    st.markdown("**System Health**")
-
-    meter_count    = len(assets[assets["asset_type"] == "meter"])
-    equip_count    = len(assets[assets["asset_type"] != "meter"])
-    event_count    = len(events)
-    complaint_count = len(complaints)
-
-    col1, col2 = st.columns(2)
-    col1.metric("Meters", meter_count)
-    col2.metric("Assets", equip_count)
-    col1.metric("Events", event_count)
-    col2.metric("Complaints", complaint_count)
-
-    st.divider()
-
-    # Live Ingestion / Replay Stream Controls
-    st.markdown("**📡 Live IoT Ingestion Feed**")
-    live_mode = st.toggle(
-        "🔴 Stream Live Telemetry",
-        value=False,
-        help="Simulate live sensor packets streaming from campus IoT gateways.",
-    )
-
-    max_tel_step = min(max(len(tel) - 1, 1), 500) if len(tel) > 0 else 100
-    if "replay_step" not in st.session_state:
-        st.session_state["replay_step"] = 0
-    elif st.session_state["replay_step"] > max_tel_step:
-        st.session_state["replay_step"] = 0
-
-    replay_status = (
-        "🟢 <b>Live Replay</b> — STREAMING (Active IoT Ingestion)"
-        if live_mode
-        else "🟡 <b>Live Replay</b> — PAUSED"
-    )
-
-    st.markdown(
-        f"""
-        <div class="sidebar-health">
-        🟢 <b>IoT Gateway</b> — ONLINE<br>
-        🟢 <b>Analytics Engine</b> — ACTIVE<br>
-        🟢 <b>Gemini AI</b> — READY<br>
-        {replay_status}<br>
-        ⏱️  <b>Sensor Uptime:</b> 99.8%<br>
-        📅  <b>Sim Period:</b> 2025-09-01 → 29
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if not live_mode:
-        st.caption("Toggle above to simulate live streaming.")
-    else:
-        def advance_telemetry():
-            st.session_state["replay_step"] = (st.session_state.get("replay_step", 0) + 1) % (max_tel_step + 1)
-
-        def reset_telemetry():
-            st.session_state["replay_step"] = 0
-
-        col_adv, col_rst = st.columns([3, 2])
-        col_adv.button("⏩ Advance Telemetry (Next 5s)", on_click=advance_telemetry, use_container_width=True)
-        col_rst.button("↺ Reset", on_click=reset_telemetry, use_container_width=True)
-
-        st.slider(
-            "Packet Step Offset",
-            min_value=0,
-            max_value=max_tel_step,
-            key="replay_step",
-            help="Scrub through simulated incoming sensor telemetry ticks.",
-        )
-
-        feed_readings = get_live_telemetry_window(
-            tel, step_index=st.session_state["replay_step"], window_size=5
-        )
-
-        st.markdown(f"**📡 Live Sensor Feed** *(Packet Batch #{st.session_state['replay_step']})*")
-        feed_container = st.container()
-        with feed_container:
-            for r in feed_readings:
-                ts_str = r.get("timestamp", "")
-                if "T" in ts_str:
-                    ts_display = ts_str.split("T")[1][:8]
-                else:
-                    ts_display = ts_str[-8:] if len(ts_str) >= 8 else ts_str
-
-                qual_color = "#22c55e" if r["quality_flag"] == "valid" else "#f59e0b"
-
-                st.markdown(
-                    f"""
-                    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; font-size: 0.78rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                            <span style="background: #064e3b; color: #34d399; padding: 1px 6px; border-radius: 4px; font-weight: 600; font-size: 0.72rem;">
-                                🟢 {r['reading_id']} | {r['asset_id']}
-                            </span>
-                            <span style="color: #64748b; font-size: 0.7rem;">{ts_display}</span>
-                        </div>
-                        <div style="color: #cbd5e1; font-family: monospace; font-size: 0.74rem;">
-                            ⚡ <b>{r['power_kw']:.2f} kW</b> &nbsp;|&nbsp; 🔌 {r['voltage_v']:.0f} V &nbsp;|&nbsp; PF: {r['power_factor']:.2f}
-                        </div>
-                        <div style="margin-top: 3px; font-size: 0.68rem; color: #94a3b8; display: flex; justify-content: space-between;">
-                            <span>Type: {r['reading_type']}</span>
-                            <span><b style="color: {qual_color};">🟢 {r['quality_flag']}</b></span>
-                        </div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-    st.divider()
-    render_byod_upload_widget(assets, tel, ctx, expanded=False, key_prefix="sidebar_byod")
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# Helper functions
 def severity_color(sev: str) -> str:
     return {"critical": COLORS["danger"], "high": COLORS["warning"],
             "medium": "#f59e0b", "low": COLORS["primary"]}.get(sev.lower(), "#64748b")
-
 
 def card_class(sev: str) -> str:
     return {"critical": "alert-card", "high": "alert-card",
             "medium": "alert-card medium", "low": "alert-card low"}.get(sev.lower(), "alert-card low")
 
+# ── Render Top Bar Component ──
+current_facility_key = render_top_bar(
+    user=current_user,
+    facility_options=FACILITY_OPTIONS,
+    current_facility_key=current_facility_key,
+    open_alerts_count=open_alerts_count,
+    latest_timestamp=latest_ts,
+)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Step 13: Guided Jury Tour Controller Banner
-# ─────────────────────────────────────────────────────────────────────────────
-if st.session_state.get("guided_tour_active", False):
-    tour_step = st.session_state.get("guided_tour_step", 1)
-    step_info = get_tour_step_info(tour_step)
+# ── 7 Operational Destinations Navigation ──
+DESTINATIONS = [
+    "Home",
+    "Alerts & Work",
+    "Assets",
+    "Energy",
+    "Water",
+    "Reports",
+    "Settings",
+]
 
-    # Progress bar and header
-    st.progress(tour_step / 6.0)
+DESTINATION_SLUGS = {
+    "home": "Home",
+    "alerts": "Alerts & Work",
+    "alerts_and_work": "Alerts & Work",
+    "alerts-and-work": "Alerts & Work",
+    "assets": "Assets",
+    "energy": "Energy",
+    "water": "Water",
+    "reports": "Reports",
+    "settings": "Settings",
+    # Legacy aliases
+    "executive": "Home",
+    "map": "Assets",
+    "campus_map": "Assets",
+    "forecasting": "Energy",
+    "microgrid": "Energy",
+    "billing": "Energy",
+    "governance": "Reports",
+}
 
+SLUG_BY_DESTINATION = {
+    "Home": "home",
+    "Alerts & Work": "alerts",
+    "Assets": "assets",
+    "Energy": "energy",
+    "Water": "water",
+    "Reports": "reports",
+    "Settings": "settings",
+}
+
+# Check query param for page destination
+if "page" in _qp:
+    _p_slug = _qp.get("page", "").lower()
+    if _p_slug in DESTINATION_SLUGS:
+        st.session_state["selected_nav_destination"] = DESTINATION_SLUGS[_p_slug]
+
+if "selected_nav_destination" not in st.session_state:
+    st.session_state["selected_nav_destination"] = "Home"
+
+# ── Clean Sidebar Navigation (Exactly 7 Destinations, no clutter) ──
+with st.sidebar:
     st.markdown(
         f"""
-        <div style="background: linear-gradient(90deg, #0f172a 0%, #1e1b4b 100%); border: 2px solid #6366f1; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.25);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="background: #4f46e5; color: #ffffff; padding: 3px 10px; border-radius: 6px; font-weight: 700; font-size: 0.80rem; letter-spacing: 0.5px;">
-                    🎬 JURY DEMO WALKTHROUGH · STEP {tour_step} OF 6
-                </span>
-                <span style="color: #94a3b8; font-size: 0.82rem; font-weight: 500;">
-                    ⏱️ Target: {step_info['time_budget']} &nbsp;|&nbsp; 🎯 {step_info['badge']}
-                </span>
+        <div style="background: #1e293b; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #334155;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 0.88rem;">{current_user.role_icon} {current_user.name}</span>
+                <span style="background: #0f172a; color: #38bdf8; padding: 2px 6px; border-radius: 4px; font-size: 0.70rem; font-weight: 600;">{current_user.role_display}</span>
             </div>
-            <h3 style="margin: 4px 0 10px 0; color: #f8fafc; font-size: 1.35rem;">
-                {step_info['title']}
-            </h3>
-            <div style="background: rgba(15, 23, 42, 0.7); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; font-size: 0.92rem; color: #e2e8f0; line-height: 1.45;">
-                <div style="font-weight: 600; color: #38bdf8; margin-bottom: 4px;">💬 Presenter Script (Say this to the jury):</div>
-                <i>"{step_info['narrative']}"</i>
-            </div>
-            <div style="display: flex; gap: 16px; margin-bottom: 10px; flex-wrap: wrap;">
-                {' '.join([f'<div style="font-size: 0.82rem; color: #cbd5e1;"><span style="color:#38bdf8; font-weight:bold;">•</span> {tp}</div>' for tp in step_info['talking_points']])}
+            <div style="color: #94a3b8; font-size: 0.74rem; margin-top: 3px;">
+                {current_user.title}
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Tour Control Navigation Buttons
-    tcol1, tcol2, tcol3, tcol4 = st.columns([2, 2, 2, 2])
-    with tcol1:
-        if st.button("⏪ Previous Step", disabled=(tour_step <= 1), use_container_width=True, key="tour_prev_btn"):
-            new_s = max(1, tour_step - 1)
-            st.session_state["guided_tour_step"] = new_s
-            st.session_state["selected_nav_page"] = get_tour_step_info(new_s)["target_page"]
-            st.rerun()
+    nav_labels = [
+        "🏠  Home",
+        f"🚨  Alerts & Work ({open_alerts_count})",
+        "🏢  Assets",
+        "⚡  Energy",
+        "💧  Water",
+        "📊  Reports",
+        "⚙️  Settings",
+    ]
 
-    with tcol2:
-        st.markdown(
-            f"<div style='text-align: center; padding-top: 8px; font-weight: 700; color: #38bdf8;'>Step {tour_step} / 6 ({step_info['short_name']})</div>",
-            unsafe_allow_html=True,
-        )
+    label_to_dest = {
+        "🏠  Home": "Home",
+        f"🚨  Alerts & Work ({open_alerts_count})": "Alerts & Work",
+        "🏢  Assets": "Assets",
+        "⚡  Energy": "Energy",
+        "💧  Water": "Water",
+        "📊  Reports": "Reports",
+        "⚙️  Settings": "Settings",
+    }
+    dest_to_label = {v: k for k, v in label_to_dest.items()}
 
-    with tcol3:
-        if st.button("⏩ Next Step", disabled=(tour_step >= 6), use_container_width=True, key="tour_next_btn"):
-            new_s = min(6, tour_step + 1)
-            st.session_state["guided_tour_step"] = new_s
-            st.session_state["selected_nav_page"] = get_tour_step_info(new_s)["target_page"]
-            st.rerun()
+    cur_dest = st.session_state.get("selected_nav_destination", "Home")
+    cur_label = dest_to_label.get(cur_dest, nav_labels[0])
+    cur_idx = nav_labels.index(cur_label) if cur_label in nav_labels else 0
 
-    with tcol4:
-        if st.button("↺ Reset Demo to Baseline", use_container_width=True, key="tour_reset_btn"):
-            st.session_state["guided_tour_step"] = 1
-            st.session_state["selected_nav_page"] = "📊  Executive Overview"
-            st.session_state.pop("injected_telemetry", None)
-            st.session_state.pop("last_injected_event", None)
-            st.session_state.pop("injected_fault_banner", None)
-            st.session_state.pop("resolved_wo_ids", None)
-            clear_fault_registry()
-            get_default_tour().reset_demo()
-            st.success("Demo environment restored to clean baseline.")
-            st.rerun()
+    selected_nav_label = st.radio(
+        "Main Navigation",
+        nav_labels,
+        index=cur_idx,
+        label_visibility="collapsed",
+        key="nivara_sidebar_nav_radio",
+    )
 
-    st.markdown("---")
+    chosen_dest = label_to_dest.get(selected_nav_label, "Home")
+    if chosen_dest != cur_dest:
+        st.session_state["selected_nav_destination"] = chosen_dest
+        st.query_params["page"] = SLUG_BY_DESTINATION.get(chosen_dest, "home")
+        st.rerun()
 
-# Active Fault Notification Banner
+    st.divider()
+    st.caption("📍 **Nivara Enterprise v2.4**")
+    st.caption("BPUT Central Intelligence System")
+
+# Active Fault Notification Banner (if simulated/injected fault is active)
 if "injected_fault_banner" in st.session_state:
     b = st.session_state["injected_fault_banner"]
     st.markdown(
@@ -1823,6 +1686,129 @@ if "injected_fault_banner" in st.session_state:
         unsafe_allow_html=True,
     )
 
+# ── Ask Nivara Slide-Over Panel ──
+if st.session_state.get("show_ask_nivara", False):
+    with st.expander("✨ Ask Nivara — AI Facility Assistant", expanded=True):
+        col_hdr_a, col_cls_a = st.columns([6, 1])
+        with col_hdr_a:
+            st.caption(f"Role Scope: **{current_user.role_display}** · Ask questions, inspect anomalies, or request operational guidance.")
+        with col_cls_a:
+            if st.button("✖ Close", key="close_ask_nivara_panel_btn", use_container_width=True):
+                st.session_state["show_ask_nivara"] = False
+                st.rerun()
+
+        import campus_energy.dashboard.agent as agent_mod
+        importlib.reload(agent_mod)
+        from campus_energy.dashboard.agent import (
+            chat_with_gemini,
+            actions_to_recommendations,
+            build_system_prompt,
+        )
+
+        if "drawer_assistant_messages" not in st.session_state:
+            st.session_state.drawer_assistant_messages = [
+                {
+                    "role": "assistant",
+                    "content": f"Hello {current_user.name}! I am Nivara, your facility intelligence assistant calibrated for {current_user.role_display} operations. How can I assist you with {selected_facility_label} today?",
+                }
+            ]
+
+        for d_msg in st.session_state.drawer_assistant_messages:
+            with st.chat_message(d_msg["role"]):
+                st.markdown(d_msg["content"])
+
+        drawer_prompt = st.chat_input("Ask Nivara about power anomalies, tariff surcharges, or maintenance...", key="drawer_ai_input")
+        if drawer_prompt:
+            st.session_state.drawer_assistant_messages.append({"role": "user", "content": drawer_prompt})
+            with st.chat_message("user"):
+                st.markdown(drawer_prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Analyzing operational telemetry…"):
+                    d_resp = chat_with_gemini(
+                        drawer_prompt,
+                        assets,
+                        tel,
+                        events,
+                        complaints,
+                        user_role=selected_role_key,
+                        history=st.session_state.drawer_assistant_messages[:-1],
+                    )
+                    st.markdown(d_resp)
+            st.session_state.drawer_assistant_messages.append({"role": "assistant", "content": d_resp})
+            st.rerun()
+
+    st.divider()
+
+# ── Map Chosen Destination to Render Page ──
+page = ""
+if chosen_dest == "Home":
+    st.markdown(
+        f"""
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 10px 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <span style="font-weight: 700; color: #f8fafc; font-size: 1.02rem;">🏠 Home · {current_user.role_display} Portal</span>
+                <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 2px;">
+                    Welcome, <b>{current_user.name}</b> ({current_user.title}) · Active Facility: <b>{selected_facility_label}</b>
+                </div>
+            </div>
+            <span style="background: #0f172a; border: 1px solid #475569; color: #38bdf8; padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600;">
+                {current_user.role_icon} Priority Focus Active
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if selected_role_key == "operations":
+        page = "🚨  Alerts & NLP"
+    elif selected_role_key == "sustainability":
+        page = "🏛️  Governance & Policy"
+    else:
+        page = "📊  Executive Overview"
+
+elif chosen_dest == "Alerts & Work":
+    page = "🚨  Alerts & NLP"
+
+elif chosen_dest == "Assets":
+    sub_col1, _ = st.columns([3, 3])
+    with sub_col1:
+        assets_view = st.segmented_control(
+            "Asset View",
+            ["🗺️  3D Campus Map", "🔍  Asset Explorer"],
+            default=st.session_state.get("assets_subview_choice", "🗺️  3D Campus Map"),
+            key="assets_subview_choice",
+        )
+    page = assets_view or "🗺️  3D Campus Map"
+
+elif chosen_dest == "Energy":
+    sub_col1, _ = st.columns([4, 2])
+    with sub_col1:
+        energy_view = st.segmented_control(
+            "Energy Module",
+            ["🤖  AI Forecasting", "🔋  Microgrid Dispatch", "💸  Department Billing"],
+            default=st.session_state.get("energy_subview_choice", "🤖  AI Forecasting"),
+            key="energy_subview_choice",
+        )
+    page = energy_view or "🤖  AI Forecasting"
+
+elif chosen_dest == "Water":
+    page = "💧  Water Intelligence"
+
+elif chosen_dest == "Reports":
+    sub_col1, _ = st.columns([3, 3])
+    with sub_col1:
+        reports_view = st.segmented_control(
+            "Reports View",
+            ["📊  Executive Overview", "🏛️  Governance & Policy"],
+            default=st.session_state.get("reports_subview_choice", "📊  Executive Overview"),
+            key="reports_subview_choice",
+        )
+    page = reports_view or "📊  Executive Overview"
+
+elif chosen_dest == "Settings":
+    page = "⚙️  Settings"
+
+st.session_state["selected_nav_page"] = page
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE 1 — Executive Overview
@@ -5546,6 +5532,65 @@ try:
         if st.button("🗑️ Clear Chat"):
             st.session_state.messages = []
             st.rerun()
+
+    elif "Settings" in page:
+        st.title("⚙️ Operational Settings & System Configuration")
+        st.caption(f"Domain assumptions, electricity tariff schedules, data ingestion, and platform health · {selected_facility_label}")
+
+        tab_assump, tab_tariffs, tab_byod, tab_sys = st.tabs([
+            "ℹ️ Operational Assumptions",
+            "⚡ Tariff Rate Cards",
+            "📁 Data Sources & Ingestion (BYOD)",
+            "🖥️ System Status & Models",
+        ])
+
+        with tab_assump:
+            st.subheader("Operational Assumptions Registry")
+            st.caption("Governing domain parameters, confidence scores, and citations.")
+            all_keys = assumptions.list_keys()
+            assump_rows = []
+            for k in all_keys:
+                item = assumptions.get(k)
+                conf_badge = {
+                    "high": "🟢 High",
+                    "medium": "🟡 Medium",
+                    "low": "🟠 Low",
+                    "needs_verification": "🔴 Needs Verification",
+                }.get(item.confidence, item.confidence)
+                assump_rows.append({
+                    "Key": item.key,
+                    "Value": f"{item.value} {item.unit}".strip(),
+                    "Confidence": conf_badge,
+                    "Source Citation": f"{item.source} ({item.source_date})",
+                    "Description": item.description,
+                })
+            st.dataframe(pd.DataFrame(assump_rows), use_container_width=True)
+
+        with tab_tariffs:
+            st.subheader("Indian Tariff Schedules & Rate Cards")
+            st.caption("Applicable distribution company tariffs, ToD slots, and demand thresholds.")
+            from campus_energy.tariffs import get_default_tariff
+            def_tariff = get_default_tariff()
+            st.json(def_tariff.model_dump())
+
+        with tab_byod:
+            st.subheader("Bring-Your-Own-Data (BYOD) Ingestion")
+            st.caption("Upload campus telemetry CSV with automatic schema mapping and validation.")
+            render_byod_upload_widget(assets, tel, ctx, expanded=True, key_prefix="settings_page_byod")
+
+        with tab_sys:
+            st.subheader("System Health & Model Configuration")
+            st.caption("IoT gateway connection state and backend engine status.")
+            notif_r = get_notification_router()
+            gw = notif_r.get_gateway_status()
+            st.markdown(f"- **Gateway Connection:** {gw['status_badge']}")
+            st.markdown(f"- **Total Meters:** {len(assets[assets['asset_type'] == 'meter'])}")
+            st.markdown(f"- **Total Equipment Assets:** {len(assets[assets['asset_type'] != 'meter'])}")
+            st.markdown(f"- **Active Anomaly Events:** {len(events)}")
+            st.markdown(f"- **Customer Complaints:** {len(complaints)}")
+            st.markdown(f"- **Logged-in User:** `{current_user.name}` ({current_user.role_display})")
+            st.markdown(f"- **Assigned Title:** {current_user.title}")
+            st.markdown(f"- **Facility Access Scope:** {', '.join(current_user.facilities)}")
 
 except Exception as page_exc:
     render_page_error_boundary(page, page_exc)

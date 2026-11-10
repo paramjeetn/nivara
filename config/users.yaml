@@ -1,0 +1,42 @@
+# Nivara Campus Energy Intelligence Platform — User Profiles Configuration
+# Defines institutional users, assigned operational roles, facility access scopes, and defaults.
+
+users:
+  admin:
+    id: "usr_admin_01"
+    name: "Dr. Arun Patnaik"
+    email: "arun.patnaik@bput.ac.in"
+    role: "administrator"
+    title: "Registrar & Campus Administrator"
+    facilities:
+      - "university"
+      - "hospital"
+      - "govt_office"
+      - "industrial"
+    default_facility: "university"
+
+  operations:
+    id: "usr_ops_01"
+    name: "Rajesh Mohanty"
+    email: "rajesh.mohanty@bput.ac.in"
+    role: "operations"
+    title: "Chief Facilities & Maintenance Engineer"
+    facilities:
+      - "university"
+      - "hospital"
+      - "govt_office"
+      - "industrial"
+    default_facility: "university"
+
+  sustainability:
+    id: "usr_sust_01"
+    name: "Priya Das"
+    email: "priya.das@bput.ac.in"
+    role: "sustainability"
+    title: "Chief Sustainability & ESG Officer"
+    facilities:
+      - "university"
+      - "hospital"
+      - "govt_office"
+      - "industrial"
+    default_facility: "university"
