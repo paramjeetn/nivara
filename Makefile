@@ -1,17 +1,31 @@
-PYTHON ?= python.bat
-PYTEST ?= pytest.bat
-STREAMLIT ?= streamlit.bat
+PYTHON ?= python
+PYTEST ?= pytest
+STREAMLIT ?= streamlit
+PIP ?= pip
 
-.PHONY: eval test run realdata
+ifeq ($(OS),Windows_NT)
+    PYTHON ?= python.bat
+    PYTEST ?= pytest.bat
+    STREAMLIT ?= streamlit.bat
+    PIP ?= pip.bat
+endif
 
-eval:
-	$(PYTHON) -m campus_energy.eval.run_all
+.PHONY: setup run demo eval realdata test
 
-test:
-	$(PYTEST) tests/ -v
+setup:
+	$(PIP) install -e ".[dev]"
 
 run:
 	$(STREAMLIT) run src/campus_energy/dashboard/app.py
 
+demo:
+	$(STREAMLIT) run src/campus_energy/dashboard/app.py -- --demo
+
+eval:
+	$(PYTHON) -m campus_energy.eval.run_all
+
 realdata:
 	$(PYTHON) scripts/run_realdata_eval.py
+
+test:
+	$(PYTEST) tests/ -v
