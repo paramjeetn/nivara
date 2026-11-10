@@ -1594,7 +1594,30 @@ if chosen_dest == "Home":
     st.stop()
 
 elif chosen_dest == "Alerts & Work":
-    page = "🚨  Alerts & Work"
+    from campus_energy.ui.views.alerts_work import render_alerts_work
+
+    p_alerts_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_alerts_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_alerts_tariff = None
+
+    notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+    render_alerts_work(
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=p_alerts_ledger,
+        tariff=p_alerts_tariff,
+        notif_router=notif_router,
+        current_user=current_user,
+    )
+    st.stop()
 
 elif chosen_dest == "Assets":
     from campus_energy.ui.views.assets import render_assets
@@ -1673,1112 +1696,90 @@ elif chosen_dest == "Water":
     st.stop()
 
 elif chosen_dest == "Reports":
-    sub_col1, _ = st.columns([3, 3])
-    with sub_col1:
-        reports_view = st.segmented_control(
-            "Reports View",
-            ["📊  Executive Overview", "🏛️  Governance & Policy"],
-            default=st.session_state.get("reports_subview_choice", "📊  Executive Overview"),
-            key="reports_subview_choice",
-        )
-    page = reports_view or "📊  Executive Overview"
+    from campus_energy.ui.views.reports import render_reports
+
+    p_reports_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_reports_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_reports_tariff = None
+
+    notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+    render_reports(
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=p_reports_ledger,
+        tariff=p_reports_tariff,
+        current_user=current_user,
+        notif_router=notif_router,
+        facility_options=FACILITY_OPTIONS,
+    )
+    st.stop()
 
 elif chosen_dest == "Settings":
-    page = "⚙️  Settings"
+    from campus_energy.ui.views.settings import render_settings
+
+    p_settings_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+    try:
+        from campus_energy.tariffs import load_tariff
+        p_settings_tariff = load_tariff("odisha_ht_commercial")
+    except Exception:
+        p_settings_tariff = None
+
+    notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+    render_settings(
+        facility_meta=facility_meta,
+        assets=assets,
+        tel=tel,
+        ctx=ctx,
+        events=events,
+        complaints=complaints,
+        ledger=p_settings_ledger,
+        tariff=p_settings_tariff,
+        current_user=current_user,
+        notif_router=notif_router,
+        facility_options=FACILITY_OPTIONS,
+        quality_report=st.session_state.get("byod_quality_report"),
+    )
+    st.stop()
 
 st.session_state["selected_nav_page"] = page
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PAGE 1 — Executive Overview
+# PAGE 1 — Reports & Executive Overview (Step UX-8)
 # ─────────────────────────────────────────────────────────────────────────────
 try:
-    if "Executive" in page:
-        import campus_energy.analytics.esg as esg_mod
-        importlib.reload(esg_mod)
-        from campus_energy.analytics.esg import calculate_esg_metrics
-        import campus_energy.analytics.carbon_budget as carbon_budget_mod
-        importlib.reload(carbon_budget_mod)
-        from campus_energy.analytics.carbon_budget import calculate_carbon_budget
-        import campus_energy.analytics.report_generator as report_gen_mod
-        importlib.reload(report_gen_mod)
-        from campus_energy.analytics.report_generator import generate_facility_pdf
+    if "Executive" in page or "Governance" in page or "Reports" in page:
+        from campus_energy.ui.views.reports import render_reports
 
-        page_heading(
-            title="Executive Overview — ESG & Sustainability",
-            subtitle=f"28-day analytical period · Last data point: {latest_ts.strftime('%Y-%m-%d %H:%M')} · Facility: {selected_facility_label}",
-            badge="Executive Scope",
+        p_rep_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+        try:
+            from campus_energy.tariffs import load_tariff
+            p_rep_tariff = load_tariff("odisha_ht_commercial")
+        except Exception:
+            p_rep_tariff = None
+        notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+        render_reports(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_rep_ledger,
+            tariff=p_rep_tariff,
+            current_user=current_user,
+            notif_router=notif_router,
+            facility_options=FACILITY_OPTIONS,
         )
-
-        if selected_role_key == "administrator":
-            st.markdown(
-                """
-                <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>👔 Administrator View Focus:</b> Executive cost governance, utility tariff demand charges, verified financial ROI ledger totals, and prioritized high-payback actions.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        elif selected_role_key == "sustainability":
-            st.markdown(
-                """
-                <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>🌱 Sustainability View Focus:</b> BEE Star Rating & EPI benchmarks, Scope 2 emissions accounting, NAPCC 20% Net-Zero burn-down trajectory, and verified carbon abatement.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        elif selected_role_key == "operations":
-            st.markdown(
-                """
-                <div style="background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>🔧 Operations View Focus:</b> Operational equipment health, avoidable fault waste tracking, non-curtailable load constraints, and technician work orders.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        render_assumptions_expander([
-            "tariff.electricity_commercial",
-            "emissions.grid_factor",
-            "policy.napcc_reduction_target_pct",
-            "waste.fault_avoidable_fraction",
-            "sustainability.tree_sequestration_kg_co2_yr",
-            "budget.month_ceiling_days",
-            f"bee.epi.{facility_type}.ecbc_baseline",
-            f"bee.epi.{facility_type}.five_star_max",
-        ])
-
-        with st.spinner("Computing ESG & Carbon Budget metrics…"):
-            esg = calculate_esg_metrics(tel, events, floor_area_m2=floor_area_m2, facility_type=facility_type)
-            cb = calculate_carbon_budget(tel, floor_area_m2=floor_area_m2, facility_type=facility_type)
-
-        kpis = esg["kpis"]
-        daily = esg["daily_trend"]
-        bld_breakdown = esg["building_breakdown"]
-        bee = esg["bee"]
-        cb_summary = cb["summary"]
-        burn_down = cb["burn_down_df"]
-        proj_df = cb["projection_df"]
-
-        # ── Closed-Loop Savings Ledger Synchronization (Step 10) ──
-        p1_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
-        p1_summary = p1_ledger.get_summary()
-
-        # ── Unified Recommendation Pipeline (Service Guard Verified) ──
-        engine = RecommendationEngine(facility_meta)
-        p1_scenarios = [
-            ("led_upgrade", {"led_upgrade": True}),
-            ("solar_pv", {"solar_pv_kwp": 150.0}),
-            ("setpoint_adjustment", {"temp_offset": 1.0}),
-        ]
-        p1_approved, p1_blocked = engine.build_ranked(
-            alerts=events if not events.empty else None,
-            complaints=complaints if not complaints.empty else None,
-            scenarios=p1_scenarios,
-            telemetry_df=tel,
-        )
-
-        # Extract avoidance ranges directly from kpis (exact same formula as Audit PDF)
-        cost_rng = kpis.get("avoidable_savings_range", {}).get("cost_inr", {})
-        cost_low = float(cost_rng.get("low", round(kpis["avoidable_cost_inr"] * 0.80, 0)))
-        cost_exp = float(cost_rng.get("expected", kpis["avoidable_cost_inr"]))
-        cost_high = float(cost_rng.get("high", round(kpis["avoidable_cost_inr"] * 1.25, 0)))
-
-        carb_rng = kpis.get("avoidable_savings_range", {}).get("carbon_kg", {})
-        carb_low = float(carb_rng.get("low", round(kpis["avoidable_carbon_kg"] * 0.80, 1)))
-        carb_exp = float(carb_rng.get("expected", kpis["avoidable_carbon_kg"]))
-        carb_high = float(carb_rng.get("high", round(kpis["avoidable_carbon_kg"] * 1.25, 1)))
-
-        # ── Headline Executive Metrics Row (Consistent with Audit PDF) ──
-        h1, h2, h3, h4, h5, h6 = st.columns(6)
-        cost_label = "💰 Energy Cost 👔" if selected_role_key == "administrator" else "💰 Energy Cost"
-        h1.metric(
-            cost_label,
-            f"₹{kpis['total_cost_inr']:,.0f}",
-            delta=f"{kpis['total_energy_kwh']:,.0f} kWh billed",
-            delta_color="off",
-        )
-        h2.metric(
-            "💡 Avoided Cost Range",
-            f"₹{cost_exp:,.0f}",
-            delta=f"Range: ₹{cost_low:,.0f} – ₹{cost_high:,.0f}",
-            delta_color="off",
-        )
-        h3.metric(
-            "☁️ Carbon Abatement Range",
-            f"{carb_exp:,.0f} kgCO₂e",
-            delta=f"Range: {carb_low:,.0f} – {carb_high:,.0f} kg",
-            delta_color="off",
-        )
-        h4.metric(
-            "✅ Verified Savings",
-            f"₹{p1_summary.cumulative_verified_inr:,.0f}",
-            delta=f"{p1_summary.cumulative_verified_kwh:,.0f} kWh ({p1_summary.estimate_hit_rate_pct:.0f}% hit-rate)" if p1_summary.verified_count > 0 else "Pending Field Verification",
-            delta_color="normal" if p1_summary.verified_count > 0 else "off",
-        )
-        h5.metric(
-            "🏅 BEE Star & EPI",
-            f"{bee['epi_annual_kwh_m2']:.0f} kWh/m²/yr",
-            delta=f"{bee['stars']}/5 Stars ({'ECBC Compliant' if bee['compliant'] else 'Below Baseline'})",
-            delta_color="normal" if bee["compliant"] else "inverse",
-        )
-        h6.metric(
-            "🛡️ Blocked Measures",
-            f"{len(p1_blocked)} Blocked",
-            delta="Service Guard Enforced",
-            delta_color="normal" if len(p1_blocked) > 0 else "off",
-        )
-        st.caption("⚠️ Decision-support estimate, not an official measurement. All headline metrics synchronized with Executive Audit PDF.")
-
-        # ── Headline Closed-Loop M&V Verification Metrics (Step 10) ──
-        st.markdown("<br>", unsafe_allow_html=True)
-        ledger_badge = ""
-        if selected_role_key == "administrator":
-            ledger_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Verified ROI</span>"
-        elif selected_role_key == "sustainability":
-            ledger_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Focus: Scope 2 Abatement</span>"
-        st.markdown(f"##### 🎯 Closed-Loop M&V Verified Metrics (IPMVP Option B){ledger_badge}", unsafe_allow_html=True)
-        m_head1, m_head2, m_head3, m_head4 = st.columns(4)
-        m_head1.metric(
-            "💰 Total Avoided Cost",
-            f"₹{cost_exp:,.0f}",
-            delta=f"{p1_summary.total_actions} Actions Logged",
-            delta_color="off",
-        )
-        m_head2.metric(
-            "✅ Verified Savings",
-            f"₹{p1_summary.cumulative_verified_inr:,.0f}",
-            delta=f"{p1_summary.cumulative_verified_kwh:,.1f} kWh Verified" if p1_summary.verified_count > 0 else "Pending Field Verification",
-            delta_color="normal" if p1_summary.verified_count > 0 else "off",
-        )
-        m_head3.metric(
-            "🌱 Cumulative Abatement",
-            f"{p1_summary.cumulative_verified_co2_kg:,.1f} kgCO₂e",
-            delta=f"{p1_summary.verified_count} of {p1_summary.total_actions} Work Orders Closed",
-            delta_color="normal" if p1_summary.verified_count > 0 else "off",
-        )
-        m_head4.metric(
-            "🎯 M&V Hit-Rate",
-            f"{p1_summary.estimate_hit_rate_pct:.1f}%",
-            delta=f"{p1_summary.verified_count} Verified Actions (IPMVP B)" if p1_summary.verified_count > 0 else "No Actions Verified Yet",
-            delta_color="normal" if p1_summary.verified_count > 0 else "off",
-        )
-
-        st.divider()
-
-        # ── BEE EPI Score Card ──
-        bee_badge = ""
-        if selected_role_key == "sustainability":
-            bee_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: National BEE EPI</span>"
-        st.markdown(f"### 🏅 BEE Energy Performance Index (EPI) — India Compliance{bee_badge}", unsafe_allow_html=True)
-        bee_col1, bee_col2, bee_col3, bee_col4 = st.columns(4)
-
-        star_emoji = {5: "⭐⭐⭐⭐⭐", 4: "⭐⭐⭐⭐", 3: "⭐⭐⭐", 2: "⭐⭐", 1: "⭐"}
-        star_color = {5: "#10b981", 4: "#38bdf8", 3: "#f59e0b", 2: "#f97316", 1: "#ef4444"}
-        compliance_badge = "✅ ECBC Compliant" if bee["compliant"] else "❌ Below ECBC Baseline"
-        compliance_delta_color = "normal" if bee["compliant"] else "inverse"
-
-        bee_col1.metric(
-            f"BEE Star Rating — {bee['facility_label']}",
-            star_emoji.get(bee["stars"], "⭐"),
-            delta=f"{bee['stars']}/5 stars",
-            delta_color="off",
-        )
-        bee_col2.metric(
-            "Energy Intensity (EPI)",
-            f"{bee['epi_annual_kwh_m2']:.0f} kWh/m²/yr",
-            delta=f"ECBC baseline: {bee['ecbc_baseline_kwh_m2']} kWh/m²/yr",
-            delta_color="off",
-        )
-        bee_col3.metric(
-            "vs. ECBC Baseline",
-            compliance_badge,
-            delta=f"{bee['vs_ecbc_pct']:+.1f}% {'above' if bee['vs_ecbc_pct'] > 0 else 'below'} baseline",
-            delta_color=compliance_delta_color,
-        )
-        bee_col4.metric(
-            "NAPCC 20% Target",
-            f"{bee['napcc_target_kwh_m2']:.0f} kWh/m²/yr",
-            delta=f"Save ₹{kpis['napcc_savings_cost_inr']:,.0f}/yr if achieved",
-            delta_color="off",
-        )
-
-        # Colour-coded EPI bar vs. benchmarks
-        fig_bee = go.Figure()
-        benchmark_epi = bee["ecbc_baseline_kwh_m2"]
-        napcc_epi = bee["napcc_target_kwh_m2"]
-        current_epi = bee["epi_annual_kwh_m2"]
-        max_range = max(current_epi, benchmark_epi) * 1.3
-
-        fig_bee.add_trace(go.Bar(
-            x=["Your Facility", "ECBC Baseline", "NAPCC Target (-20%)"],
-            y=[current_epi, benchmark_epi, napcc_epi],
-            marker_color=[
-                star_color.get(bee["stars"], "#ef4444"),
-                "#64748b",
-                "#10b981",
-            ],
-            text=[f"{current_epi:.0f}", f"{benchmark_epi:.0f}", f"{napcc_epi:.0f}"],
-            textposition="outside",
-        ))
-        fig_bee.update_layout(
-            paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-            font_color="#94a3b8", yaxis_title="kWh / m² / year",
-            title=f"EPI Benchmark Comparison — {bee['facility_label']}",
-            yaxis=dict(range=[0, max_range]),
-            showlegend=False,
-            height=300,
-        )
-        st.plotly_chart(fig_bee, use_container_width=True)
-
-        # Environmental impact callout
-        napcc_cost = kpis["napcc_savings_cost_inr"]
-        napcc_low = round(napcc_cost * 0.85, 0)
-        napcc_high = round(napcc_cost * 1.15, 0)
-        st.info(
-            f"🌳 **Carbon Footprint:** This facility emits the equivalent of **{kpis['annual_carbon_tons_projection']:.1f} tonnes CO₂/year** — "
-            f"offset by planting **{kpis['trees_equivalent']:,} trees**. "
-            f"Achieving the NAPCC reduction target would save **{kpis['napcc_savings_carbon_tons']:.1f} t CO₂/year** "
-            f"and **Expected: ₹{napcc_cost:,.0f}/year (Range: ₹{napcc_low:,.0f} – ₹{napcc_high:,.0f}/year)** in energy costs.\n\n"
-            f"⚠️ Decision-support estimate, not an official measurement."
-        )
-
-        st.divider()
-
-        # ── Institutional Carbon Budget & NAPCC Net-Zero Tracker ──
-        cb_badge = ""
-        if selected_role_key == "sustainability":
-            cb_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: NAPCC Net-Zero Trajectory</span>"
-        st.markdown(f"### 📉 Institutional Carbon Budget & NAPCC Net-Zero Tracker{cb_badge}", unsafe_allow_html=True)
-        st.caption("30-day cumulative carbon burn-down trajectory linked to NAPCC 20% ECBC baseline targets")
-
-        # Progress bar for monthly carbon budget consumption
-        cb_progress = min(1.0, max(0.0, cb_summary["current_cumulative_tco2"] / max(cb_summary["monthly_budget_tco2"], 0.001)))
-        st.markdown(
-            f"**Budget Utilisation:** `{cb_summary['current_cumulative_tco2']:.1f} / {cb_summary['monthly_budget_tco2']:.1f} t CO₂` "
-            f"({cb_summary['consumption_pct']:.1f}% consumed with {cb_summary['days_remaining']} days remaining in month)"
-        )
-        st.progress(cb_progress)
-
-        # 4 Metric cards
-        cb_c1, cb_c2, cb_c3, cb_c4 = st.columns(4)
-        cb_c1.metric(
-            "Monthly Target Budget",
-            f"{cb_summary['monthly_budget_tco2']:.1f} t CO₂",
-            delta="NAPCC Net-Zero Target",
-            delta_color="off",
-        )
-        cb_c2.metric(
-            "Emitted to Date",
-            f"{cb_summary['current_cumulative_tco2']:.1f} t CO₂",
-            delta=f"{cb_summary['days_observed']} days observed",
-            delta_color="off",
-        )
-        proj_diff = round(cb_summary["projected_month_end_tco2"] - cb_summary["monthly_budget_tco2"], 2)
-        proj_delta_color = "normal" if proj_diff <= 0 else "inverse"
-        cb_c3.metric(
-            "Projected Month-End",
-            f"{cb_summary['projected_month_end_tco2']:.1f} t CO₂",
-            delta=f"{proj_diff:+.1f} t CO₂ ({cb_summary['overshoot_pct']:+.1f}%)",
-            delta_color=proj_delta_color,
-        )
-        if cb_summary["overshoot_tco2"] > 0:
-            cb_c4.metric(
-                "Projected Overshoot",
-                f"+{cb_summary['overshoot_tco2']:.1f} t CO₂",
-                delta=f"Curtail ~{cb_summary['daily_curtail_kwh']:.0f} kWh/day",
-                delta_color="inverse",
-            )
-        else:
-            cb_c4.metric(
-                "Remaining Budget",
-                f"{cb_summary['remaining_budget_tco2']:.1f} t CO₂",
-                delta="Under budget ceiling",
-                delta_color="normal",
-            )
-
-        # Contextual Alert banner
-        if cb_summary["status"] == "ON_TRACK":
-            st.success(cb_summary["alert"])
-        elif cb_summary["status"] == "WARNING":
-            st.warning(cb_summary["alert"])
-        else:
-            st.error(cb_summary["alert"])
-
-        # Plotly Burn-Down Chart
-        fig_cb = go.Figure()
-
-        # Month-end budget ceiling (horizontal threshold line)
-        fig_cb.add_trace(go.Scatter(
-            x=[1, 30],
-            y=[cb_summary["monthly_budget_tco2"], cb_summary["monthly_budget_tco2"]],
-            mode="lines",
-            name="Month-End Ceiling",
-            line=dict(color="#ef4444", width=2, dash="dashdot"),
-        ))
-
-        # Pro-rated linear target line (dashed line)
-        target_x = list(range(1, 31))
-        target_y = [round((d / 30.0) * cb_summary["monthly_budget_tco2"], 3) for d in target_x]
-        fig_cb.add_trace(go.Scatter(
-            x=target_x,
-            y=target_y,
-            mode="lines",
-            name="Pro-rated Linear Target",
-            line=dict(color="#64748b", width=2, dash="dash"),
-        ))
-
-        # Cumulative emissions to date (solid colored line)
-        line_color = "#10b981" if cb_summary["status"] == "ON_TRACK" else ("#f59e0b" if cb_summary["status"] == "WARNING" else "#ef4444")
-        fig_cb.add_trace(go.Scatter(
-            x=burn_down["day_index"],
-            y=burn_down["cumulative_tco2"],
-            mode="lines+markers",
-            name="Cumulative Emitted to Date",
-            line=dict(color=line_color, width=3),
-            marker=dict(size=5, color=line_color),
-        ))
-
-        # Projected trajectory to day 30 (dotted line)
-        if not proj_df.empty:
-            fig_cb.add_trace(go.Scatter(
-                x=proj_df["day_index"],
-                y=proj_df["projected_cumulative_tco2"],
-                mode="lines",
-                name="Projected Trajectory (Day 30)",
-                line=dict(color="#38bdf8", width=2, dash="dot"),
-            ))
-
-        fig_cb.update_layout(
-            title="Monthly Carbon Burn-Down vs. NAPCC Net-Zero Target (t CO₂)",
-            xaxis=dict(
-                title="Day of Month (1 – 30)",
-                range=[1, 30],
-                dtick=2,
-                gridcolor="#1e293b",
-            ),
-            yaxis=dict(
-                title="Cumulative Emissions (t CO₂)",
-                gridcolor="#1e293b",
-            ),
-            paper_bgcolor="#0f172a",
-            plot_bgcolor="#0f172a",
-            font_color="#94a3b8",
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-                bgcolor="rgba(15, 23, 42, 0.7)",
-            ),
-            height=380,
-            margin=dict(l=40, r=20, t=50, b=40),
-        )
-        st.plotly_chart(fig_cb, use_container_width=True)
-
-        st.divider()
-
-        # ── Annualised projection row ──
-        st.subheader("📅 Annualised Projection (based on 28-day window)")
-        a1, a2, a3 = st.columns(3)
-        a1.metric("Annual Energy", f"{kpis['annual_kwh_projection']:,.0f} kWh / yr")
-        a2.metric("Annual Cost", f"₹{kpis['annual_cost_inr_projection']:,.0f} / yr")
-        a3.metric("Annual Carbon", f"{kpis['annual_carbon_tons_projection']:.1f} t CO₂ / yr")
-
-
-        st.divider()
-
-        # ── Charts row ──
-        c_left, c_right = st.columns([2, 1])
-
-        with c_left:
-            st.subheader("Daily Campus Energy Consumption")
-            fig = px.bar(
-                daily, x="date", y="daily_kwh",
-                color="daily_kwh",
-                color_continuous_scale=["#10b981", "#f59e0b", "#ef4444"],
-                labels={"daily_kwh": "Energy (kWh)", "date": "Date"},
-            )
-            fig.add_trace(go.Scatter(
-                x=daily["date"], y=daily["daily_kwh"].rolling(3).mean(),
-                mode="lines", name="3-day MA",
-                line=dict(color="#38bdf8", width=2, dash="dot"),
-            ))
-            fig.update_layout(
-                paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-                font_color="#94a3b8", coloraxis_showscale=False,
-                legend=dict(bgcolor="#1e293b"),
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with c_right:
-            st.subheader("Energy by Building")
-            fig2 = px.pie(
-                bld_breakdown, values="total_kwh", names="building_name",
-                hole=0.45, color_discrete_sequence=px.colors.sequential.Plasma_r,
-            )
-            fig2.update_layout(paper_bgcolor="#0f172a", font_color="#94a3b8",
-                               legend=dict(bgcolor="#1e293b", font_size=11))
-            fig2.update_traces(textinfo="percent+label")
-            st.plotly_chart(fig2, use_container_width=True)
-
-        # ── Carbon trend ──
-        st.subheader("Daily Carbon Footprint Trend")
-        fig3 = go.Figure()
-        fig3.add_trace(go.Scatter(
-            x=daily["date"], y=daily["daily_carbon_kg"],
-            fill="tozeroy", name="CO₂ (kg)",
-            line=dict(color="#f59e0b"), fillcolor="rgba(245,158,11,0.15)",
-        ))
-        fig3.update_layout(
-            paper_bgcolor="#0f172a", plot_bgcolor="#0f172a",
-            font_color="#94a3b8", yaxis_title="CO₂ Emissions (kg)",
-            xaxis_title="Date",
-        )
-        st.plotly_chart(fig3, use_container_width=True)
-
-        # ── ESG CSV & PDF Audit Report Export ──
-        st.divider()
-        export_df = pd.DataFrame({
-            "Metric": [
-                "Total Energy (kWh)", "Total Cost (INR)", "Carbon Emitted (tons CO2)",
-                "Avoidable Waste (kWh)", "Avoidable Cost (INR)", "Waste %",
-                "Annual Energy Projection (kWh)", "Annual Cost Projection (INR)",
-                "Annual Carbon Projection (tons CO2)",
-                "BEE EPI (kWh/m²/yr)", "BEE Star Rating", "ECBC Compliant",
-                "NAPCC Target (kWh/m²/yr)", "NAPCC Savings Potential (kWh/yr)",
-                "Trees Equivalent",
-            ],
-            "Value": [
-                kpis["total_energy_kwh"], kpis["total_cost_inr"], kpis["total_carbon_tons"],
-                kpis["wasted_kwh"], kpis["avoidable_cost_inr"], kpis["waste_pct"],
-                kpis["annual_kwh_projection"], kpis["annual_cost_inr_projection"],
-                kpis["annual_carbon_tons_projection"],
-                bee["epi_annual_kwh_m2"], bee["stars"], bee["compliant"],
-                bee["napcc_target_kwh_m2"], kpis["napcc_savings_kwh"],
-                kpis["trees_equivalent"],
-            ]
-        })
-        c_csv, c_pdf = st.columns(2)
-        with c_csv:
-            st.download_button(
-                "📄 Download ESG Compliance Report (CSV)",
-                export_df.to_csv(index=False).encode(),
-                "campus_esg_report.csv",
-                "text/csv",
-            )
-        with c_pdf:
-            pdf_data = generate_facility_pdf(
-                facility_name=selected_facility_label,
-                facility_type=facility_type,
-                floor_area_m2=floor_area_m2,
-                kpis=kpis,
-                bee_info=bee,
-                events_df=events.head(10) if not events.empty else None,
-                ledger=p1_ledger,
-                recommendations=p1_approved,
-                blocked_recommendations=p1_blocked,
-                profile=facility_meta,
-                assumptions_registry=assumptions,
-            )
-            st.download_button(
-                "📥 Download Executive Audit PDF",
-                data=pdf_data,
-                file_name=f"{facility_type}_executive_audit_report.pdf",
-                mime="application/pdf",
-            )
-
-        # ── Step 9: Indian Tariff Optimization & Compliance Panel ──
-        st.divider()
-        if selected_role_key == "administrator":
-            st.markdown("<span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Contract Demand & ToD Surcharges</span>", unsafe_allow_html=True)
-        render_indian_tariff_panel(facility_meta, tel)
-
-        # ── Step 8: Unified Recommendation Pipeline & Decarbonization Roadmap ──
-        st.divider()
-        rec_badge = ""
-        if selected_role_key == "administrator":
-            rec_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Priority: Executive Action Approvals</span>"
-        elif selected_role_key == "operations":
-            rec_badge = " &nbsp; <span style='font-size:0.75rem; background:#d97706; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🔧 Operations Priority: Guard Constraints</span>"
-        st.markdown(f"### 💡 Unified Recommendation Pipeline & Decarbonization Roadmap{rec_badge}", unsafe_allow_html=True)
-        st.caption("AI-synthesized, multi-source energy conservation recommendations strictly verified by the Service-Impact Guard and ranked by expected annual financial savings.")
-
-        t_app, t_blk = st.tabs([f"🟢 Approved Ranked Measures ({len(p1_approved)})", f"🛡️ Blocked by Guard ({len(p1_blocked)})"])
-        with t_app:
-            if p1_approved:
-                for r in p1_approved:
-                    render_recommendation_card(r)
-            else:
-                st.info("No approved recommendations active.")
-
-        with t_blk:
-            if p1_blocked:
-                st.warning("The following proposed measures were intercepted by the Service-Impact Guard to protect critical operations:")
-                for r in p1_blocked:
-                    render_recommendation_card(r)
-            else:
-                st.success("Zero recommendations blocked for current configuration.")
-
-
-
-    # ─────────────────────────────────────────────────────────────────────────────
-    # PAGE 1B — Governance & Policy
-    # ─────────────────────────────────────────────────────────────────────────────
-    elif "Governance" in page:
-        page_heading(
-            title="Institutional Governance, Policy & Multi-Facility Benchmarking",
-            subtitle="India-wide facility energy comparison, Bureau of Energy Efficiency (BEE) compliance, and state-level scaling impact.",
-            badge="Governance",
-        )
-
-        if selected_role_key == "sustainability":
-            st.markdown(
-                """
-                <div style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>🌱 Sustainability View Focus:</b> Cross-facility BEE EPI benchmarks, ECBC statutory compliance, state-level decarbonization scaling, and empirical ML verification evidence.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        elif selected_role_key == "administrator":
-            st.markdown(
-                """
-                <div style="background: rgba(56, 189, 248, 0.1); border-left: 4px solid #38bdf8; border-radius: 6px; padding: 10px 14px; margin-bottom: 14px; font-size: 0.88rem; color: #cbd5e1;">
-                    <b>👔 Administrator View Focus:</b> Institutional statutory compliance, multi-facility financial performance, cross-campus energy budgets, and state-level scaling financial returns.
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-        @st.cache_data(show_spinner="Computing multi-facility benchmarks…")
-        def load_governance_benchmarks():
-            from campus_energy.analytics.governance import get_multi_facility_benchmarks
-            return get_multi_facility_benchmarks(FACILITY_OPTIONS)
-
-        from campus_energy.analytics.governance import calculate_state_impact
-        bench_df = load_governance_benchmarks()
-
-        # ── Section 1: Multi-Facility Performance Matrix ──────────────────────────
-        st.markdown("### 📊 Cross-Facility Performance & BEE Benchmarks")
-        st.caption("Side-by-side comparison of conditioned area, annual consumption, ECBC compliance, and carbon intensity.")
-
-        # Attach protected load counts to governance table
-        bench_df["Protected Loads"] = bench_df["Facility Type"].apply(
-            lambda ft: f"🛡️ {len(_LOADED_PROFILES[ft].protected_loads)} Protected"
-            if ft in _LOADED_PROFILES
-            else "N/A"
-        )
-
-        display_cols = [
-            "Facility",
-            "Facility Type",
-            "Protected Loads",
-            "Floor Area (m²)",
-            "Peak Occupancy",
-            "Annual Energy (MWh)",
-            "Annual Cost (₹ Lakh)",
-            "EPI (kWh/m²/yr)",
-            "ECBC Baseline",
-            "BEE Rating",
-            "ECBC Status",
-            "Annual Carbon (t CO₂)",
-            "CO₂ / Occupant (t/person)",
-            "Avoidable Waste (MWh)",
-            "Potential Savings (₹ Lakh)",
-        ]
-        st.dataframe(
-            bench_df[display_cols],
-            use_container_width=True,
-            hide_index=True,
-        )
-
-        # ── Section 1B: Mission-Critical Protected Loads & Service Protection ─────
-        st.markdown("### 🛡️ Mission-Critical Protected Loads & Service-Impact Constraints")
-        st.caption("Critical infrastructure and clinical assets with non-curtailable constraints (`🛡️ Protected Load: Non-Curtailable`).")
-
-        cur_prot_loads = getattr(facility_meta, "protected_loads", [])
-        if cur_prot_loads:
-            prot_rows = [
-                {
-                    "Status": "🛡️ Protected Load: Non-Curtailable",
-                    "Asset ID": pl.asset_id,
-                    "Asset Name": pl.asset_name,
-                    "Zone ID": pl.zone_id or "Whole Facility",
-                    "Criticality Class": pl.category.replace("_", " ").title(),
-                    "Min Power (kW)": f"{pl.min_power_kw:.1f} kW" if pl.min_power_kw else "Unspecified",
-                    "Curtailable": "❌ False (Protected)",
-                    "Statutory & Operational Reason": pl.reason,
-                }
-                for pl in cur_prot_loads
-            ]
-            st.dataframe(pd.DataFrame(prot_rows), use_container_width=True, hide_index=True)
-        else:
-            st.info("No non-curtailable protected loads registered for this facility profile.")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        c_chart1, c_chart2 = st.columns(2)
-
-        with c_chart1:
-            fig_epi = go.Figure()
-            fig_epi.add_trace(go.Bar(
-                x=bench_df["Facility"],
-                y=bench_df["EPI (kWh/m²/yr)"],
-                name="Actual EPI (kWh/m²/yr)",
-                marker_color="#38bdf8",
-                text=bench_df["EPI (kWh/m²/yr)"].apply(lambda v: f"{v:.1f}"),
-                textposition="outside",
-            ))
-            fig_epi.add_trace(go.Bar(
-                x=bench_df["Facility"],
-                y=bench_df["ECBC Baseline"],
-                name="ECBC Baseline (kWh/m²/yr)",
-                marker_color="#f59e0b",
-                text=bench_df["ECBC Baseline"].apply(lambda v: f"{v:.0f}"),
-                textposition="outside",
-            ))
-            fig_epi.update_layout(
-                title="<b>Energy Performance Index (EPI) vs ECBC Baseline</b>",
-                barmode="group",
-                paper_bgcolor="#0f172a",
-                plot_bgcolor="#0f172a",
-                font_color="#94a3b8",
-                xaxis=dict(gridcolor="#1e293b"),
-                yaxis=dict(gridcolor="#334155", title="kWh / m² / yr"),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                margin=dict(l=20, r=20, t=50, b=20),
-            )
-            st.plotly_chart(fig_epi, use_container_width=True)
-
-        with c_chart2:
-            fig_carb = go.Figure()
-            fig_carb.add_trace(go.Bar(
-                x=bench_df["Facility"],
-                y=bench_df["CO₂ / Occupant (t/person)"],
-                name="CO₂ / Occupant",
-                marker_color="#10b981",
-                text=bench_df["CO₂ / Occupant (t/person)"].apply(lambda v: f"{v:.2f} t"),
-                textposition="outside",
-            ))
-            fig_carb.update_layout(
-                title="<b>Annual Carbon Intensity per Peak Occupant</b>",
-                paper_bgcolor="#0f172a",
-                plot_bgcolor="#0f172a",
-                font_color="#94a3b8",
-                xaxis=dict(gridcolor="#1e293b"),
-                yaxis=dict(gridcolor="#334155", title="t CO₂ / person / yr"),
-                margin=dict(l=20, r=20, t=50, b=20),
-            )
-            st.plotly_chart(fig_carb, use_container_width=True)
-
-        fig_bubble = px.scatter(
-            bench_df,
-            x="Floor Area (m²)",
-            y="Annual Carbon (t CO₂)",
-            size="Annual Energy (MWh)",
-            color="Facility",
-            text="Facility",
-            hover_data=["EPI (kWh/m²/yr)", "BEE Rating", "ECBC Status"],
-            title="<b>Annual Carbon Footprint vs Floor Area (Bubble size = Annual Energy MWh)</b>",
-        )
-        fig_bubble.update_traces(textposition="top center")
-        fig_bubble.update_layout(
-            paper_bgcolor="#0f172a",
-            plot_bgcolor="#0f172a",
-            font_color="#94a3b8",
-            xaxis=dict(gridcolor="#334155"),
-            yaxis=dict(gridcolor="#334155"),
-            margin=dict(l=20, r=20, t=50, b=20),
-            showlegend=False,
-        )
-        st.plotly_chart(fig_bubble, use_container_width=True)
-
-        st.divider()
-
-        # ── Section 2: State-Level Scaling Impact Simulator ──────────────────────
-        st.markdown("### 🌐 State-Level Scaling Impact Simulator (Odisha / National Level)")
-        st.caption("Extrapolate collective savings if Nivara's autonomous energy intelligence is adopted across regional infrastructure networks.")
-
-        num_facilities = st.slider(
-            "🏛️ Scale to State/Institutional Network (Number of Facilities)",
-            min_value=10,
-            max_value=500,
-            value=100,
-            step=10,
-            help="Simulate the collective financial, energy, and carbon savings if Nivara is deployed across state universities, district hospitals, administrative complexes, and industrial estates.",
-        )
-
-        impact = calculate_state_impact(bench_df, num_facilities=num_facilities)
-
-        sm1, sm2, sm3, sm4 = st.columns(4)
-        sm1.metric(
-            "⚡ Total Energy Avoided",
-            f"{impact['total_annual_mwh_saved']:,.1f} MWh / yr",
-            delta="Avoided Waste",
-        )
-        sm2.metric(
-            "💰 Financial Savings",
-            f"₹{impact['total_financial_savings_cr']:,.2f} Cr / yr",
-            delta="Tariff Savings",
-        )
-        sm3.metric(
-            "☁️ Carbon Mitigated",
-            f"{impact['total_co2_mitigated_tons']:,.1f} t CO₂ / yr",
-            delta="Scope 2 Emissions",
-        )
-        sm4.metric(
-            "🌲 Tree Equivalent",
-            f"{impact['trees_planted_equivalent']:,} trees",
-            delta=f"{impact['coal_unburned_tons']:,.1f} t coal unburned",
-        )
-
-        st.markdown(
-            f"""
-            <div style="background: #1e293b; border-left: 4px solid #38bdf8; border-radius: 8px; padding: 14px 18px; margin-top: 15px; margin-bottom: 20px;">
-                <h4 style="margin: 0 0 8px 0; color: #38bdf8;">🇮🇳 Strategic Policy Alignment: NAPCC & BEE PAT Scheme</h4>
-                <p style="margin: 0; font-size: 0.9rem; color: #cbd5e1; line-height: 1.5;">
-                    <b>National Action Plan on Climate Change (NAPCC) — National Mission for Enhanced Energy Efficiency (NMEEE):</b><br>
-                    Nivara directly enforces the mandatory 20% carbon reduction targets under NAPCC across state-owned public infrastructure and commercial campuses. Real-time sub-metering and baseline anomaly suppression ensure institutional facilities remain comfortably within designated energy quotas.<br><br>
-                    <b>Perform, Achieve and Trade (PAT) Scheme under Bureau of Energy Efficiency (BEE):</b><br>
-                    Under the Energy Conservation Act, Designated Consumers (DCs) in healthcare, education, and industrial clusters earn tradable <b>Energy Saving Certificates (ESCerts)</b> when outperforming SEC (Specific Energy Consumption) baselines. Across a <b>{num_facilities}-facility</b> network, Nivara unlocks an estimated <b>₹{impact['total_financial_savings_cr']:,.2f} Crores/year</b> in avoided tariff costs and compliance penalties.
-                </p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        st.divider()
-
-        # ── Section 3: ECBC & Institutional Compliance Checklist ────────────────
-        comp_badge = ""
-        if selected_role_key == "administrator":
-            comp_badge = " &nbsp; <span style='font-size:0.75rem; background:#0284c7; color:#f8fafc; padding:2px 8px; border-radius:4px;'>👔 Administrator Compliance Scorecard</span>"
-        elif selected_role_key == "sustainability":
-            comp_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Mandate</span>"
-        st.markdown(f"### 📋 ECBC & Institutional Energy Compliance Checklist{comp_badge}", unsafe_allow_html=True)
-        st.caption("Mandatory statutory standards under Energy Conservation Building Code (ECBC 2017) & Energy Conservation (Amendment) Act 2022.")
-
-        with st.expander("🔎 Mandatory Compliance Audits & Facility Controls", expanded=True):
-            c_a, c_b = st.columns(2)
-            with c_a:
-                chk1 = st.checkbox(
-                    "✅ Building-level sub-metering installed",
-                    value=True,
-                    help="Verified across all 4 facilities with high-resolution 5-min interval logging.",
-                )
-                st.caption("Status: **COMPLIANT** · 100% telemetry coverage across active conditioned zones.")
-
-                chk2 = st.checkbox(
-                    "✅ HVAC setback temperature ≥ 24°C policy adherence",
-                    value=True,
-                    help="Government mandate for public buildings and commercial cooling.",
-                )
-                st.caption("Status: **COMPLIANT** · Rule-engine flags zones running AC below 24°C threshold.")
-
-                chk3 = st.checkbox(
-                    "✅ Lighting Power Density (LPD) compliance with LED retrofits",
-                    value=True,
-                    help="Meets ECBC threshold ≤ 7.5 W/m².",
-                )
-                st.caption("Status: **COMPLIANT** · LED fixtures configured across academic and admin blocks.")
-
-            with c_b:
-                chk4 = st.checkbox(
-                    "✅ Minimum Night Flow (MNF) water leak monitoring",
-                    value=True,
-                    help="Synthetic water meter sensor network tracking post-midnight anomaly spikes.",
-                )
-                st.caption("Status: **COMPLIANT** · Automatic alert generation when midnight flow exceeds 2.5× baseline.")
-
-                chk5 = st.checkbox(
-                    "✅ Periodic energy audit readiness (automatic data logging)",
-                    value=True,
-                    help="Data export and continuous telemetry pipeline compliant with BEE Bureau guidelines.",
-                )
-                st.caption("Status: **COMPLIANT** · Continuous timestamped CSV/database logging ready for third-party accredited energy auditors.")
-
-            compliant_count = sum([chk1, chk2, chk3, chk4, chk5])
-            st.progress(
-                compliant_count / 5.0,
-                text=f"Institutional Compliance Score: {compliant_count}/5 ({compliant_count * 20}%)",
-            )
-
-            # ── Section 4: Centralized Assumptions Registry ──────────────────────────
-            st.divider()
-            st.markdown("### 📖 Centralized Assumptions Registry")
-            st.caption(
-                "Traceable, defensible, and audited operational assumptions. "
-                "All physical, financial, and regulatory benchmarks are defined in `config/assumptions.yaml`."
-            )
-
-            all_assumptions = assumptions.all()
-            domains = sorted(list({a.key.split(".")[0] for a in all_assumptions}))
-            filter_col1, filter_col2 = st.columns([2, 2])
-            with filter_col1:
-                selected_domain = st.selectbox(
-                    "Filter by Domain Category:",
-                    ["all"] + domains,
-                    format_func=lambda x: f"All Domains ({len(all_assumptions)} items)" if x == "all" else f"{x.upper()} ({len(assumptions.list_by_prefix(x + '.'))} items)",
-                )
-            with filter_col2:
-                conf_filter = st.selectbox(
-                    "Filter by Confidence Level:",
-                    ["all", "high", "medium", "low", "needs_verification"],
-                )
-
-            filtered_items = [
-                a for a in all_assumptions
-                if (selected_domain == "all" or a.key.startswith(f"{selected_domain}."))
-                and (conf_filter == "all" or a.confidence == conf_filter)
-            ]
-
-            table_rows = []
-            for a in filtered_items:
-                conf_badge = {
-                    "high": "🟢 High",
-                    "medium": "🟡 Medium",
-                    "low": "🟠 Low",
-                    "needs_verification": "🔴 Needs Verification",
-                }.get(a.confidence, a.confidence)
-
-                table_rows.append({
-                    "Key": a.key,
-                    "Value": f"{a.value} {a.unit}".strip(),
-                    "Confidence": conf_badge,
-                    "Source Citation": f"{a.source} ({a.source_date})",
-                    "Applies To": ", ".join(a.applies_to),
-                    "Description": a.description,
-                })
-
-            st.dataframe(pd.DataFrame(table_rows), use_container_width=True)
-
-            # ── Section 5: 🔬 Verification & Evidence (Evaluation Harness) ──────
-            st.divider()
-            ev_badge = ""
-            if selected_role_key == "sustainability":
-                ev_badge = " &nbsp; <span style='font-size:0.75rem; background:#059669; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌱 Sustainability Priority: Model Proof Layer</span>"
-            st.markdown(f"### 🔬 Verification & Evidence (The Proof Layer){ev_badge}", unsafe_allow_html=True)
-            st.caption(
-                "Reproducible quantitative evaluation of Nivara's anomaly detection and load forecasting models "
-                "against naive baselines and component ablations."
-            )
-            st.info("⚠️ **Methodological Notice:** Evaluated on synthetic data with injected faults; validates the pipeline, not real-world accuracy.")
-
-            eval_dir = Path(__file__).resolve().parent.parent.parent.parent / "reports" / "eval"
-            summary_path = eval_dir / "summary.json"
-
-            if summary_path.exists():
-                try:
-                    import json
-                    with open(summary_path, "r", encoding="utf-8") as f:
-                        eval_data = json.load(f)
-
-                    anom_eval = eval_data.get("anomaly_evaluation", {})
-                    fc_eval = eval_data.get("forecast_evaluation", {})
-
-                    # Summary Scorecard
-                    c_sc1, c_sc2, c_sc3, c_sc4 = st.columns(4)
-                    with c_sc1:
-                        st.metric("Layered Engine Recall", "80.0%", "4/5 Injected Faults Detected")
-                    with c_sc2:
-                        st.metric("Static Baseline Recall", "20.0%", "-60.0% vs Layered Engine", delta_color="inverse")
-                    with c_sc3:
-                        st.metric("Best Forecast Model", "Seasonal-Naive", "8.27% Overall MAPE")
-                    with c_sc4:
-                        st.metric("Prophet / Ridge MAPE", "40.5% / 40.1%", "Parametric Smoothers", delta_color="off")
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    tab_anom, tab_fc = st.tabs(["🚨 Anomaly Detection Benchmarks", "📈 Load Forecasting Benchmarks"])
-
-                    with tab_anom:
-                        st.markdown("#### Anomaly Detection: Layered Engine vs Baselines & Ablations")
-                        st.caption("Event-level temporal tolerance: ±60 minutes with strict event-level deduplication.")
-
-                        anom_results = anom_eval.get("results", [])
-                        if anom_results:
-                            anom_df = pd.DataFrame([
-                                {
-                                    "Model / Component": r["model_name"],
-                                    "True Positives (TP)": r["true_positives"],
-                                    "False Positives (FP)": r["false_positives"],
-                                    "False Negatives (FN)": r["false_negatives"],
-                                    "Precision": f"{r['precision']:.4f}",
-                                    "Recall": f"{r['recall'] * 100:.1f}%",
-                                    "F1 Score": f"{r['f1_score']:.4f}",
-                                    "Mean Delay": f"{r['mean_delay_minutes']:.1f} min" if r["mean_delay_minutes"] > 0 else "0.0 min",
-                                }
-                                for r in anom_results
-                            ])
-                            st.dataframe(anom_df, use_container_width=True, hide_index=True)
-
-                        anom_img_path = eval_dir / "anomaly_f1_comparison.png"
-                        if anom_img_path.exists():
-                            st.image(str(anom_img_path), use_container_width=True)
-
-                        with st.expander("🔎 Per-Fault Type Breakdown (Full Layered Engine)"):
-                            layered_item = next((r for r in anom_results if "Full" in r["model_name"]), None)
-                            if layered_item and "per_fault_type" in layered_item:
-                                pft_rows = []
-                                for ftype, fdata in layered_item["per_fault_type"].items():
-                                    delay_text = f"{fdata['mean_delay_minutes']:.1f} min" if fdata.get("mean_delay_minutes") is not None else "N/A (Missed)"
-                                    pft_rows.append({
-                                        "Fault Type": ftype,
-                                        "Total Injected": fdata["total_events"],
-                                        "Detected": fdata["detected"],
-                                        "Missed": fdata["missed"],
-                                        "Recall": f"{fdata['recall'] * 100:.1f}%",
-                                        "Mean Delay": delay_text,
-                                    })
-                                st.dataframe(pd.DataFrame(pft_rows), use_container_width=True, hide_index=True)
-                                st.caption("Note: `duplicate_reading` is a single 5-minute telemetry retry event, deduplicated at stream ingestion.")
-
-                    with tab_fc:
-                        st.markdown("#### Load Forecasting: 7-Day Temporal Holdout Comparison")
-                        st.caption("Temporal split: First 21 days training, last 7 days held-out evaluation (zero future context leakage).")
-
-                        fc_table = fc_eval.get("comparison_table", [])
-                        if fc_table:
-                            st.dataframe(pd.DataFrame(fc_table), use_container_width=True, hide_index=True)
-
-                        fc_img_path = eval_dir / "forecast_mape_comparison.png"
-                        if fc_img_path.exists():
-                            st.image(str(fc_img_path), use_container_width=True)
-
-                        st.markdown(
-                            "> **Analysis:** Seasonal-Naive ('same slot last week') achieves the lowest MAPE (8.27%) because campus "
-                            "academic operations follow strict periodic weekly schedules. While Ridge and Prophet produce smooth parametric "
-                            "curves, weekly persistence directly captures sharp step transitions and weekend operational minimums."
-                        )
-                except Exception as e:
-                    st.warning(f"Unable to render evaluation metrics: {e}")
-            else:
-                st.info("Evaluation metrics report not yet generated. Run `make eval` to compute proof layer artifacts.")
-
-            # ── Section 6: 🌍 Real-World Public Dataset Benchmark (BDG2 Validation) ─────
-            st.divider()
-            real_badge = "&nbsp; <span style='font-size:0.75rem; background:#2563eb; color:#f8fafc; padding:2px 8px; border-radius:4px;'>🌍 Real Data Proof</span>"
-            st.markdown(f"### 🌍 Real-World Public Dataset Benchmark (BDG2 Validation){real_badge}", unsafe_allow_html=True)
-            st.caption(
-                "Empirical validation on real commercial university telemetry from the **Building Data Genome 2 (BDG2)** "
-                "(Miller et al., Nature Scientific Data 2020) published under open **Creative Commons Attribution 4.0 International (CC-BY 4.0)**."
-            )
-
-            st.warning(
-                "⚠️ **Prominent Disclaimer:** Evaluated on real commercial building meter data. Unlike synthetic benchmarks, "
-                "ground-truth fault labels do not exist; metrics show unsupervised detector behavior and forecasting accuracy on actual grid telemetry."
-            )
-
-            realdata_summary_path = eval_dir / "realdata_summary.json"
-            if realdata_summary_path.exists():
-                try:
-                    import json
-                    with open(realdata_summary_path, "r", encoding="utf-8") as f:
-                        rd_data = json.load(f)
-
-                    rd_meta = rd_data.get("metadata", {})
-                    rd_dq = rd_data.get("data_quality", {})
-                    rd_fc = rd_data.get("forecast_evaluation", {})
-                    rd_anom = rd_data.get("anomaly_evaluation", {})
-
-                    # Top Scorecards
-                    c_rd1, c_rd2, c_rd3, c_rd4 = st.columns(4)
-                    with c_rd1:
-                        st.metric(
-                            "Dataset & Building",
-                            "BDG2: UnivClass_Mary",
-                            "CC-BY 4.0 (Miller et al., 2020)",
-                            delta_color="off",
-                        )
-                    with c_rd2:
-                        st.metric(
-                            "Data Quality Score",
-                            f"{rd_dq.get('quality_score', 100.0):.1f}%",
-                            f"{rd_dq.get('total_records', 744)} Hourly Records",
-                            delta_color="normal",
-                        )
-                    with c_rd3:
-                        st.metric(
-                            "Best Forecaster",
-                            "Seasonal-Naive",
-                            "7.40% Real-World MAPE",
-                            delta_color="normal",
-                        )
-                    with c_rd4:
-                        anom_cnt = rd_anom.get("total_flagged_alerts", 3)
-                        st.metric(
-                            "Flagged Anomalies",
-                            f"{anom_cnt} Events",
-                            "3 Audited Deviations",
-                            delta_color="inverse",
-                        )
-
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    tab_rd_fc, tab_rd_anom = st.tabs([
-                        "📈 Real-World Load Forecasting (BDG2)",
-                        "🚨 Real-World Anomaly Detection & Audits",
-                    ])
-
-                    with tab_rd_fc:
-                        st.markdown("#### Load Forecasting on Real Grid Telemetry (7-Day Holdout)")
-                        st.caption(
-                            "Building: `UnivClass_Mary` (College Classroom / Higher Education, ~4,500 m²). "
-                            "Temporal holdout: 24 days training (576 hours), 7 days held-out evaluation (168 hours)."
-                        )
-
-                        rd_fc_table = rd_fc.get("comparison_table", [])
-                        if rd_fc_table:
-                            st.dataframe(pd.DataFrame(rd_fc_table), use_container_width=True, hide_index=True)
-
-                        st.markdown(
-                            "> **Empirical Real-World Takeaway:** Seasonal-Naive achieves **7.40% MAPE** on real university meter telemetry, "
-                            "confirming that weekly operational schedules are the dominant predictor of commercial building electrical load. "
-                            "Parametric models (Ridge at 27.36% and Prophet at 27.74%) suffer during weekend transitions and holiday closures "
-                            "because parametric smoothers over-predict unoccupied baseload."
-                        )
-
-                    with tab_rd_anom:
-                        st.markdown("#### Unsupervised Anomaly Detection on Real Telemetry")
-                        st.caption(
-                            "Unsupervised multi-layer detection executed on raw meter feeds. Results reflect real behavioral "
-                            "and operational departures from expected baseline."
-                        )
-
-                        c_det1, c_det2, c_det3 = st.columns(3)
-                        det_counts = rd_anom.get("detector_counts", {})
-                        with c_det1:
-                            st.info(f"**Nivara Layered Engine:** {det_counts.get('nivara_layered_engine', 3)} alerts")
-                        with c_det2:
-                            st.info(f"**Rolling Z-Score Baseline:** {det_counts.get('baseline_rolling_zscore', 3)} alerts")
-                        with c_det3:
-                            st.info(f"**Static Threshold Baseline:** {det_counts.get('baseline_static_threshold', 1)} alerts")
-
-                        st.markdown("##### 🔎 Manually Audited Real-World Operational Deviations")
-                        for audit in rd_anom.get("audited_top_events", []):
-                            with st.expander(f"📌 {audit.get('title')} ({audit.get('duration_hours')} hours)"):
-                                c_a1, c_a2, c_a3 = st.columns(3)
-                                with c_a1:
-                                    st.write(f"**Timeline:** {audit.get('start_time')} to {audit.get('end_time')}")
-                                    st.write(f"**Observed Load:** {audit.get('observed_power_kw')} kW")
-                                with c_a2:
-                                    st.write(f"**Expected Baseline:** {audit.get('baseline_power_kw')} kW")
-                                    st.write(f"**Excess Demand:** +{audit.get('excess_power_kw')} kW")
-                                with c_a3:
-                                    st.write(f"**Wasted Energy:** +{audit.get('excess_energy_kwh'):,.1f} kWh")
-                                    st.write(f"**Flagged By:** {', '.join(audit.get('detector_flagged_by', []))}")
-                                st.markdown(f"**Engineering Diagnosis:** {audit.get('engineering_audit')}")
-
-                        sample_alerts = rd_anom.get("sample_alerts", [])
-                        if sample_alerts:
-                            st.markdown("##### 📋 Telemetry Alert Records")
-                            st.dataframe(pd.DataFrame(sample_alerts), use_container_width=True, hide_index=True)
-
-                except Exception as e:
-                    st.warning(f"Unable to render real-world evaluation metrics: {e}")
-            else:
-                st.info("Real-world dataset evaluation report not yet generated. Run `make realdata` or `python scripts/run_realdata_eval.py` to produce benchmark artifacts.")
-
-
 
     # ─────────────────────────────────────────────────────────────────────────────
     # PAGE 2 — 3D Campus Map (Consolidated into Assets View)
@@ -3077,74 +2078,30 @@ try:
             st.rerun()
 
     elif "Settings" in page:
-        page_heading(
-            title="Operational Settings & System Configuration",
-            subtitle=f"Domain assumptions, electricity tariff schedules, data ingestion, and platform health · {selected_facility_label}",
-            badge="Admin Settings",
+        from campus_energy.ui.views.settings import render_settings
+
+        p_set_ledger = get_or_create_savings_ledger(facility_meta, events, tel)
+        try:
+            from campus_energy.tariffs import load_tariff
+            p_set_tariff = load_tariff("odisha_ht_commercial")
+        except Exception:
+            p_set_tariff = None
+        notif_router = get_notification_router() if "get_notification_router" in globals() else None
+
+        render_settings(
+            facility_meta=facility_meta,
+            assets=assets,
+            tel=tel,
+            ctx=ctx,
+            events=events,
+            complaints=complaints,
+            ledger=p_set_ledger,
+            tariff=p_set_tariff,
+            current_user=current_user,
+            notif_router=notif_router,
+            facility_options=FACILITY_OPTIONS,
+            quality_report=st.session_state.get("byod_quality_report"),
         )
-
-        tab_assump, tab_tariffs, tab_byod, tab_sys = st.tabs([
-            "ℹ️ Operational Assumptions",
-            "⚡ Tariff Rate Cards",
-            "📁 Data Sources & Ingestion (BYOD)",
-            "🖥️ System Status & Models",
-        ])
-
-        with tab_assump:
-            st.subheader("Operational Assumptions Registry")
-            st.caption("Governing domain parameters, confidence scores, and citations.")
-            all_keys = assumptions.list_keys()
-            assump_rows = []
-            for k in all_keys:
-                item = assumptions.get(k)
-                conf_badge = {
-                    "high": "🟢 High",
-                    "medium": "🟡 Medium",
-                    "low": "🟠 Low",
-                    "needs_verification": "🔴 Needs Verification",
-                }.get(item.confidence, item.confidence)
-                assump_rows.append({
-                    "Key": item.key,
-                    "Value": f"{item.value} {item.unit}".strip(),
-                    "Confidence": conf_badge,
-                    "Source Citation": f"{item.source} ({item.source_date})",
-                    "Description": item.description,
-                })
-            st.dataframe(pd.DataFrame(assump_rows), use_container_width=True)
-
-        with tab_tariffs:
-            st.subheader("Indian Tariff Schedules & Rate Cards")
-            st.caption("Applicable distribution company tariffs, ToD slots, and demand thresholds.")
-            from campus_energy.tariffs import get_default_tariff
-            def_tariff = get_default_tariff()
-            st.json(def_tariff.model_dump())
-
-        with tab_byod:
-            st.subheader("Bring-Your-Own-Data (BYOD) Ingestion")
-            st.caption("Upload campus telemetry CSV with automatic schema mapping and validation.")
-            render_byod_upload_widget(assets, tel, ctx, expanded=True, key_prefix="settings_page_byod")
-
-        with tab_sys:
-            st.subheader("System Health & Model Configuration")
-            st.caption("IoT gateway connection state and backend engine status.")
-            notif_r = get_notification_router()
-            gw = notif_r.get_gateway_status()
-            st.markdown(f"- **Gateway Connection:** {gw['status_badge']}")
-            st.markdown(f"- **Total Meters:** {len(assets[assets['asset_type'] == 'meter'])}")
-            st.markdown(f"- **Total Equipment Assets:** {len(assets[assets['asset_type'] != 'meter'])}")
-            st.markdown(f"- **Active Anomaly Events:** {len(events)}")
-            st.markdown(f"- **Customer Complaints:** {len(complaints)}")
-            st.markdown(f"- **Logged-in User:** `{current_user.name}` ({current_user.role_display})")
-            st.markdown(f"- **Assigned Title:** {current_user.title}")
-            st.markdown(f"- **Facility Access Scope:** {', '.join(current_user.facilities)}")
-
-            st.divider()
-            st.subheader("Developer & Design System")
-            st.caption("Inspect live enterprise UI components, color tokens, and typography scale.")
-            if st.button("🎨 Launch Component Styleguide", key="settings_launch_styleguide_btn"):
-                st.query_params["page"] = "styleguide"
-                st.session_state["selected_nav_destination"] = "Styleguide"
-                st.rerun()
 
 except Exception as page_exc:
     render_page_error_boundary(page, page_exc)

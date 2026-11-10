@@ -5,6 +5,8 @@ from campus_energy.ui.views.energy import render_energy
 from campus_energy.ui.views.home_admin import render_home_admin
 from campus_energy.ui.views.home_operations import render_home_operations
 from campus_energy.ui.views.home_sustainability import render_home_sustainability
+from campus_energy.ui.views.reports import render_reports
+from campus_energy.ui.views.settings import render_settings
 from campus_energy.ui.views.water import render_water
 
 __all__ = [
@@ -15,5 +17,7 @@ __all__ = [
     "render_home_admin",
     "render_home_operations",
     "render_home_sustainability",
+    "render_reports",
+    "render_settings",
     "render_water",
 ]
