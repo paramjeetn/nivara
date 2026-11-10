@@ -1,7 +1,7 @@
 {
   "metadata": {
     "evaluation_title": "Nivara Proof Layer & Model Verification Harness",
-    "evaluation_timestamp": "2026-11-09T12:25:55.191448",
+    "evaluation_timestamp": "2026-11-10T07:33:35.392911",
     "random_seed": 42,
     "python_version": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
     "tolerance_minutes": 60,

@@ -1,7 +1,7 @@
 {
   "metadata": {
     "evaluation_title": "Nivara Real-World Public Dataset Benchmark (BDG2 Validation)",
-    "evaluation_timestamp": "2026-11-09T18:15:47.489705",
+    "evaluation_timestamp": "2026-11-10T07:34:02.627579",
     "dataset_name": "Building Data Genome 2 (BDG2)",
     "building_id": "UnivClass_Mary",
     "building_type": "Education / College Classroom",
@@ -93,14 +93,14 @@
           "mae_kw": 7.11,
           "mape_pct": 27.74,
           "rmse_kw": 10.77,
-          "coverage_pct": 86.9,
+          "coverage_pct": 86.31,
           "count": 168
         },
         "weekday": {
           "mae_kw": 5.01,
           "mape_pct": 14.26,
           "rmse_kw": 6.55,
-          "coverage_pct": 94.79,
+          "coverage_pct": 93.75,
           "count": 96
         },
         "weekend": {
@@ -145,7 +145,7 @@
         "Overall MAPE (%)": 27.74,
         "Overall MAE (kW)": 7.11,
         "Overall RMSE (kW)": 10.77,
-        "80% Interval Coverage (%)": "86.9%",
+        "80% Interval Coverage (%)": "86.3%",
         "Weekday MAPE (%)": 14.26,
         "Weekend MAPE (%)": 62.44,
         "Holiday MAPE (%)": "12.28%"
@@ -216,7 +216,7 @@
     ],
     "sample_alerts": [
       {
-        "alert_id": "ALT-D50E4C82",
+        "alert_id": "ALT-5FB4E071",
         "asset_id": "MTR-UnivClass_Mary",
         "anomaly_type": "high_consumption",
         "severity": "critical",
@@ -229,7 +229,7 @@
         "confidence": 0.92
       },
       {
-        "alert_id": "ALT-556882D5",
+        "alert_id": "ALT-901BFB78",
         "asset_id": "MTR-UnivClass_Mary",
         "anomaly_type": "ml_multivariate_anomaly",
         "severity": "critical",
@@ -242,7 +242,7 @@
         "confidence": 0.66
       },
       {
-        "alert_id": "ALT-E8D4BC98",
+        "alert_id": "ALT-E6795C67",
         "asset_id": "MTR-UnivClass_Mary",
         "anomaly_type": "high_consumption",
         "severity": "critical",

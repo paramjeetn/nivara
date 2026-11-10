@@ -2,7 +2,7 @@
 
 > **Methodological Disclaimer:** *Evaluated on synthetic data with injected faults; validates the pipeline, not real-world accuracy.*
 
-- **Evaluation Date:** 2026-11-09 12:25:58
+- **Evaluation Date:** 2026-11-10 07:33:39
 - **Execution Mode:** Deterministic (`np.random.seed(42)`)
 - **Dataset:** BPUT Multi-Facility Telemetry Benchmark (28 Days @ 5-min cadence)
 - **Artifacts:** `reports/eval/summary.json`, `reports/eval/anomaly_f1_comparison.png`, `reports/eval/forecast_mape_comparison.png`
