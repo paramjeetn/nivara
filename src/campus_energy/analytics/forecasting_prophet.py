@@ -17,12 +17,24 @@ for _name in ("prophet", "cmdstanpy"):
 # Workaround for polars environment incompatibility with cmdstanpy CSV reading:
 # polars in some environments raises RuntimeError (SSE3 flag) on import, which breaks
 # cmdstanpy's optional polars loader (cmdstanpy only catches ImportError/ModuleNotFoundError).
-# Setting sys.modules["polars"] = None causes Python's standard import system to cleanly
-# raise ModuleNotFoundError without monkey-patching builtins.__import__.
-try:
-    import polars  # noqa: F401
-except Exception:
-    sys.modules["polars"] = None
+# We register a MetaPathFinder that raises ModuleNotFoundError on 'polars', allowing
+# cmdstanpy to fall back to numpy while ensuring 'polars' is absent from sys.modules
+# (which prevents sklearn from attempting to access pl.DataFrame).
+from importlib.abc import MetaPathFinder
+
+class _PolarsImportBlocker(MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname == "polars" or fullname.startswith("polars."):
+            raise ModuleNotFoundError("polars disabled due to CPU compatibility")
+        return None
+
+sys.modules.pop("polars", None)
+for _mod in list(sys.modules.keys()):
+    if _mod.startswith("polars."):
+        sys.modules.pop(_mod, None)
+
+if not any(isinstance(f, _PolarsImportBlocker) for f in sys.meta_path):
+    sys.meta_path.insert(0, _PolarsImportBlocker())
 
 from prophet import Prophet
 
