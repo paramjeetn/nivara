@@ -15,18 +15,36 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from reportlab.lib.colors import HexColor, white, black
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import (
-    KeepTogether,
-    PageBreak,
-    Paragraph,
-    SimpleDocTemplate,
-    Spacer,
-    Table,
-    TableStyle,
-)
+try:
+    from reportlab.lib.colors import HexColor, white, black
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import (
+        KeepTogether,
+        PageBreak,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+    HAS_REPORTLAB = True
+except ImportError:
+    HAS_REPORTLAB = False
+    def HexColor(c): return c
+    white = "#ffffff"
+    black = "#000000"
+    A4 = (595.27, 841.89)
+    def getSampleStyleSheet(): return {}
+    class ParagraphStyle:
+        def __init__(self, *args, **kwargs): pass
+    class SimpleDocTemplate: pass
+    class Paragraph: pass
+    class Spacer: pass
+    class Table: pass
+    class TableStyle: pass
+    class KeepTogether: pass
+    class PageBreak: pass
 
 from campus_energy import assumptions
 
@@ -153,6 +171,9 @@ def generate_facility_pdf(
     Returns:
         bytes: Complete generated PDF document.
     """
+    if not HAS_REPORTLAB:
+        raise RuntimeError("ReportLab is not installed in the active Python environment. Run 'pip install reportlab' to enable PDF export.")
+
     # Unpack nested esg_metrics if passed as kpis
     if isinstance(kpis, dict) and "kpis" in kpis and "bee" in kpis:
         bee_info = bee_info or kpis.get("bee", {})
