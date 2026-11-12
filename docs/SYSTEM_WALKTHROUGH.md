@@ -3,7 +3,7 @@
 > **Document Type:** Master Operational & Architectural Reference  
 > **Platform:** Nivara — Campus Resource & Energy Intelligence Platform (formerly BPUT)  
 > **Target Audience:** Hackathon Juries, Facility Registrars, Operations Leads, Sustainability Officers, and Developers  
-> **Verification Status:** 209 / 209 Passing Tests (`pytest`) · 100% Offline Air-Gapped Capable  
+> **Verification Status:** 316 / 316 Passing Tests (`pytest`) · 100% Offline Air-Gapped Capable  
 
 ---
 
@@ -42,8 +42,8 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph L1 ["1. Data & IoT Ingestion Layer"]
-        D1["5-min Telemetry Simulator (28 Days)"]
-        D2["FastAPI Ingestion API & Replay Player"]
+        D1["15-min Telemetry Simulator (28 Days)"]
+        D2["FastAPI Ingestion API & Edge Replay Player"]
         D3["Bring-Your-Own-Data (BYOD) Smart CSV Mapper"]
         D4["Data Quality Engine (DQE 5-Rule Scorecard)"]
     end
@@ -77,12 +77,12 @@ flowchart TD
         E4["Notification Router (Telegram & SMTP Email Dispatcher)"]
     end
 
-    subgraph L6 ["6. Presentation & Delivery Layer"]
-        P1["10-Page Interactive Streamlit Operations Command Center"]
+    subgraph L6 ["6. Enterprise Presentation & Delivery Layer"]
+        P1["Primary Operational Tool (Port 8501: 7 Core Destinations)"]
         P2["3D Mapbox GL Digital Twin + 2D Plotly Vector Fallback"]
-        P3["Grounded Gemini AI Facility Assistant + Offline Fallback"]
+        P3["Embedded Contextual Ask Nivara Panel (Gemini Live + Grounded Fallback)"]
         P4["One-Click Statutory Executive Audit PDF Report (ReportLab)"]
-        P5["2-Minute Guided Jury Tour State Machine with Live Fault Injector"]
+        P5["Decoupled Presenter Controller Sidecar (Port 8502: Live Fault Injection & Tour)"]
     end
 
     L1 --> L3
@@ -95,44 +95,37 @@ flowchart TD
 
 ---
 
-## 3. Global Controls & Sidebar Flow
+## 3. Global Navigation, User Roles & Clean Layout
 
-The left sidebar persists across all 10 pages and governs system context, role tailoring, and live data streaming:
+Following the UX redesign, Nivara replaces dense presentation scaffolding with a clean, authoritative enterprise layout:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│ ⚡ NIVARA — Facility Intelligence                      │
-│ India-wide Resource Intelligence Platform              │
+│ ⚡ NIVARA — Institutional Resource Intelligence        │
 ├────────────────────────────────────────────────────────┤
-│ 🏢 FACILITY SELECTOR (Dynamic Profile Discovery)       │
+│ 👤 AUTHENTICATED USER (Role from Login)                │
+│   • Operations Lead (Rajesh Kumar)                     │
+│   • Sustainability Officer (Dr. Ananya Sharma)         │
+│   • Registrar & Administrator (Prof. P. K. Mohapatra)  │
+│   [Switch User menu · Active Role Badge]               │
+├────────────────────────────────────────────────────────┤
+│ 🏢 FACILITY CONTEXT SELECTOR                           │
 │   • 🎓 University — Vidya Institute of Technology     │
 │   • 🏥 District Hospital — Rajiv Gandhi Hospital       │
 │   • 🏛️ Government Office — Collectorate Complex        │
 │   • 🏭 Industrial Campus — Kalinga Industrial Estate   │
-│   [📍 Location · Floor Area m² · Peak Occupancy]       │
 ├────────────────────────────────────────────────────────┤
-│ 👤 PERSONA VIEW SELECTOR                               │
-│   • 👔 Administrator & Registrar                       │
-│   • 🔧 Operations & Maintenance Lead                   │
-│   • 🌱 Chief Sustainability Officer (CSO)              │
-│   [Tailors widget prominence, KPIs, and Gemini tone]   │
+│ 🧭 7 OPERATIONAL DESTINATIONS                          │
+│   1. 🏠 Home (Role-Tailored Operational Cockpit)       │
+│   2. 🚨 Alerts & Work (Inbox, Triage & CMMS Queue)     │
+│   3. 🗺️ Assets (Campus Digital Twin & Sub-meters)      │
+│   4. ⚡ Energy (15-min Load, ToD & Forecasting)        │
+│   5. 💧 Water (HydroSense MNF Leak Detection)          │
+│   6. 📑 Reports (BEE Star, ECBC Audit & PDF Export)    │
+│   7. ⚙️ Settings (Assumptions, Tariffs & BYOD Ingestion)│
 ├────────────────────────────────────────────────────────┤
-│ 🎬 GUIDED JURY TOUR (Toggle On/Off)                   │
-│   [Enables 2-minute 6-step walkthrough banner]         │
-├────────────────────────────────────────────────────────┤
-│ 🧭 NAVIGATION MENU (10 Pages)                          │
-├────────────────────────────────────────────────────────┤
-│ 📥 BRING-YOUR-OWN-DATA (CSV Uploader Expander)         │
-│   [Smart mapping, DQE Scorecard, Confidence penalty]   │
-├────────────────────────────────────────────────────────┤
-│ 📊 SYSTEM HEALTH & COUNTERS                            │
-│   [Meters: 12 · Assets: 30 · Events: 5 · Complaints]   │
-├────────────────────────────────────────────────────────┤
-│ 📡 LIVE IOT INGESTION FEED & REPLAY TICKER             │
-│   [Live packet stream · Replay scrubber · Packet card] │
-├────────────────────────────────────────────────────────┤
-│ 🔔 NOTIFICATION GATEWAY STATUS                         │
-│   [🟢 Active (Dry-Run Logged) / Live Telegram & SMTP]  │
+│ 🤖 ASK NIVARA (Collapsible Contextual Drawer)          │
+│   [Gemini Live AI Reasoning · Grounded Offline Mode]   │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -349,42 +342,42 @@ The left sidebar persists across all 10 pages and governs system context, role t
 
 ---
 
-## 5. The 2-Minute Guided Jury Tour Choreography
+## 5. Decoupled Presenter Controller & Dual-Screen Demo Architecture
 
-When the **"🎬 Guided Jury Tour"** toggle is enabled in the sidebar, a top-of-screen controller guides presenters through a scripted, deterministic 6-step walkthrough:
+In accordance with Section 7 of `docs/REDESIGN_SPEC.md`, all demo scaffolding, live fault injection triggers, and jury rehearsal checklists have been completely decoupled from the production application:
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│ 🎬 GUIDED JURY TOUR · Step 2 of 6: ⚡ Live Fault Injection                             │
-│ Progress: [████████████░░░░░░░░░░░░░░░░░░░░░░░░] 33%                                   │
-│                                                                                        │
-│ 🗣️ Presenter Script: "Watch our real-time IoT gateway. I will now inject a severe     │
-│ pump dry-run cavitation fault into the mechanical utility building..."                 │
-│                                                                                        │
-│ [⏪ Previous Step]         [🚨 Inject Fault Now]         [⏩ Next Step]    [↺ Reset]   │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────┐         ┌───────────────────────────────────────┐
+│ PRIMARY PRODUCT TOOL (Port 8501)      │         │ PRESENTER CONTROLLER SIDECAR (8502)   │
+├───────────────────────────────────────┤         ├───────────────────────────────────────┤
+│ • Pure operational UX for daily use   │         │ • Scripted 6-step jury tour controller│
+│ • Zero demo toggles or hype badges    │ <────── │ • Instant fault injector (pump, HVAC) │
+│ • Clean dark-mode enterprise theme    │ (shared │ • Talking points & rehearsal cues     │
+│ • Sub-120ms cached navigation         │  state) │ • Audience reset & state seeder       │
+└───────────────────────────────────────┘         └───────────────────────────────────────┘
 ```
+
+### Launching the Dual-Screen Setup:
+Run `make demo` or `python scripts/launch_demo.py`. This script automatically:
+1. Seeds a realistic, lived-in operational history (3 verified work orders, 5 historical alerts) via `campus_energy.storage.seed`.
+2. Starts the primary product dashboard on `http://localhost:8501`.
+3. Starts the presenter controller sidecar on `http://localhost:8502`.
 
 ### The 6-Step Rehearsal Script:
 
-1. **Step 1: 📊 Executive Baseline (Page 1):**
+1. **Step 1: 📊 Executive Baseline (Home / Reports):**
    * *Talking Point:* "Nivara is an autonomous facility intelligence platform for Indian campuses. Here is our university baseline: ₹8.50/kWh commercial tariff, 3-star BEE rating, and 28-day baseline telemetry."
-   * *Action:* Click `⏩ Next Step`.
-2. **Step 2: ⚡ Live Fault Injection (Page 5):**
-   * *Talking Point:* "Now let's simulate a live equipment failure. Using our Live Fault Injection Studio, I inject a pump cavitation dry-run into `EQ-UTL-P1-PM`."
-   * *Action:* Click `🚨 Inject Fault Now` (Reaction latency: **1.84 ms**), then click `⏩ Next Step`.
-3. **Step 3: 🚨 Anomaly Detection & "Why?" Card (Page 5):**
+2. **Step 2: ⚡ Live Fault Injection (Sidecar Port 8502):**
+   * *Talking Point:* "Now let's simulate a live equipment failure. Using our decoupled Presenter Sidecar, I inject a pump cavitation dry-run into `EQ-UTL-P1-PM`."
+   * *Action:* Trigger fault on Port 8502.
+3. **Step 3: 🚨 Anomaly Detection & "Why?" Card (Alerts & Work):**
    * *Talking Point:* "Within milliseconds, our triple-layer detector triggers an alert. Notice the explainable 'Why?' card: it shows the pump drew 15.0 kW while flow dropped to 0 LPM, attributing 65% of the anomaly to hydraulic decoupling."
-   * *Action:* Click `⏩ Next Step`.
-4. **Step 4: 🛡️ Guarded Action & Safety Check (Page 5):**
+4. **Step 4: 🛡️ Guarded Action & Safety Check (Alerts & Work):**
    * *Talking Point:* "Our AI recommends equipment shutdown and capacitor correction. Crucially, notice the `🟢 Service-Safe` certification. If this were hospital ICU equipment, our Service-Impact Guard would have strictly blocked curtailment and offered a safe alternative."
-   * *Action:* Click `⏩ Next Step`.
-5. **Step 5: 🛠️ Work Order & Live Notification (Page 5):**
+5. **Step 5: 🛠️ Work Order & Live Notification (Alerts & Work):**
    * *Talking Point:* "We dispatch a maintenance work order with an automated 4-hour SLA countdown. Instantly, our notification gateway dispatches an alert via Telegram and Email to the maintenance lead."
-   * *Action:* Click `🚀 Dispatch Work Order`, then click `⏩ Next Step`.
-6. **Step 6: 🔬 Resolution & Verified M&V Ledger (Page 5 / Page 1):**
+6. **Step 6: 🔬 Resolution & Verified M&V Ledger (Alerts & Work / Home):**
    * *Talking Point:* "Once the technician fixes the pump, we simulate resolution. Our IPMVP Option B counterfactual engine compares actual post-repair consumption against the counterfactual baseline, empirically verifying ₹1,275 avoided cost and logging a 100% forecast hit rate."
-   * *Action:* Click `🔬 Resolve & Verify`, show the ledger hit rate, and conclude!
 
 ---
 
@@ -419,9 +412,10 @@ Nivara is deeply localized for the Indian electrical and regulatory landscape:
 
 ## 7. Verification Evidence & Quality Assurance
 
-* **Unit & Integration Tests:** **209 / 209 passing** (`pytest tests/ -v`).
+* **Unit & Integration Tests:** **316 / 316 passing** (`pytest tests/ -v`, 100% green pass in ~3.5 min).
+* **Tone & Consistency Standards:** Zero exclamation marks in view headers/cards, zero marketing hype words, standardized decision-support disclaimers (`docs/step_reports/ux-11.md`).
 * **AST Hardcoding Inspection:** Automated syntax tree analysis asserts zero hardcoded tariff literals (`8.5`, `0.82`) in analytics modules.
 * **Empirical Anomaly Benchmark:** 80.0% recall across injected faults; 100% precision (0 false alarms) on physical rule ablations.
 * **Empirical Forecast Benchmark:** 81.4% (Ridge) and 82.7% (Prophet) empirical interval coverage on theoretical 80% prediction intervals.
 * **Real-World BDG2 Benchmark:** 6.57% weekday forecast MAPE on real higher-ed classroom telemetry (`UnivClass_Mary`, CC-BY 4.0).
-* **Reliability:** 100% air-gapped offline execution, Mapbox 2D vector fallback, error boundaries on every page, and sub-second cached navigation (< 150ms).
+* **Reliability:** 100% air-gapped offline execution, Mapbox 2D vector fallback, error boundaries on every view, and sub-120ms cached navigation.

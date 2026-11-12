@@ -2,7 +2,7 @@
 
 > **Platform:** Nivara Institutional Resource Intelligence Platform  
 > **Evaluation Date:** November 2026  
-> **Test Suite Status:** 209 / 209 passing (`pytest tests/ -v`, 100% green pass)  
+> **Test Suite Status:** 316 / 316 passing (`pytest tests/ -v`, 100% green pass)  
 > **Evaluation Harness:** Gate A, B, C, D verified (`reports/eval/summary.json` & `realdata_summary.json`)  
 > **Air-Gap Readiness:** 100% Offline Executable (Zero External Cloud Dependencies Required)
 
@@ -303,11 +303,11 @@ Hackathon live demonstrations frequently fail due to conference Wi-Fi outages, L
 
 ## Complete Verification & Test Evidence Index
 
-The complete test suite of **209 automated tests across 32 test suites** passes with 100% green status:
+The complete test suite of **316 automated tests across 41 test suites** passes with 100% green status:
 
 ```bash
 $ pytest tests/ -v
-======================= 209 passed in 217.05s (0:03:37) =======================
+======================= 316 passed in 214.18s (0:03:34) =======================
 ```
 
 ### Key Test Suite Mapping
@@ -324,11 +324,20 @@ $ pytest tests/ -v
 | **Criterion 4 (Savings Ledger)** | [`tests/test_ledger.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_ledger.py) | 8 tests | IPMVP Option B counterfactual math, hit-rate %, verified savings ledger |
 | **Criterion 4 (CMMS Work Orders)**| [`tests/test_workorders.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_workorders.py) | 6 tests | Multi-factor priority scoring, live SLA status, team categorization |
 | **Criterion 5 (Personas & Roles)**| [`tests/test_roles.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_roles.py) | 6 tests | Administrator, Operations, Sustainability profiles & prompt injection |
-| **Criterion 5 (Jury Tour & Faults)**| [`tests/test_demo.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_demo.py) | 13 tests | 6-step tour state machine, 5 fault presets, 1.84ms latency benchmark |
+| **Criterion 5 (Presenter & Tour)**| [`tests/test_presenter_and_seed.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_presenter_and_seed.py) | 6 tests | Decoupled Port 8502 presenter controller, operational history seeder |
+| **Criterion 5 (Fault Injection)** | [`tests/test_demo.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_demo.py) | 12 tests | Fault injection presets, dynamic asset targeting, 1.84ms latency benchmark |
+| **Criterion 6 (UI Components)** | [`tests/test_components.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_components.py) | 23 tests | Enterprise design system cards, status badges, alert rows, disclaimers |
+| **Criterion 6 (Role Home Views)** | [`tests/test_role_homes.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_role_homes.py) | 13 tests | Role-based landing home views for Operations, Sustainability, and Admin |
+| **Criterion 6 (Alerts & Work View)**| [`tests/test_alerts_work_view.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_alerts_work_view.py) | 10 tests | Exception triage inbox, diagnostic cards, CMMS work order queue |
+| **Criterion 6 (Assets View)** | [`tests/test_assets_view.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_assets_view.py) | 8 tests | Digital twin asset navigator, 2D Plotly & 3D Mapbox geospatial footprints |
+| **Criterion 6 (Energy & Water Views)**| [`tests/test_energy_water_views.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_energy_water_views.py) | 9 tests | 15-min load profiles, ToD tariff optimization, HydroSense MNF leak detection |
+| **Criterion 6 (Reports & Settings)**| [`tests/test_reports_settings_views.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_reports_settings_views.py) | 9 tests | Statutory compliance reports, ReportLab PDF export, assumptions & BYOD |
+| **Criterion 6 (Ask Nivara Panel)**| [`tests/test_ask_nivara_panel.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_ask_nivara_panel.py) | 13 tests | Contextual intelligence drawer, Gemini reasoning, grounded offline fallback |
+| **Criterion 6 (Tone & Consistency)**| [`tests/test_polish.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_polish.py) | 12 tests | Zero exclamation marks, zero hype words, standardized disclaimers, empty states |
 | **Criterion 6 (AST & Registry)** | [`tests/test_assumptions.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_assumptions.py) | 8 tests | Zero hardcoded constants via AST, 49 traceable registry parameters |
 | **Criterion 6 (Explainability)** | [`tests/test_explainability.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_explainability.py) | 6 tests | "Why?" diagnostic cards, factor attribution, root-cause decomposition |
-| **Criterion 6 (Audit Report)** | [`tests/test_report_generator.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_report_generator.py) | 8 tests | Multi-page ReportLab PDF, all 4 facility types, assumptions appendix |
-| **Criterion 7 (Demo Reliability)**| [`tests/test_reliability.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_reliability.py) | 8 tests | Offline Gemini fallback, 2D vector map fallback, sub-second caching |
+| **Criterion 6 (Audit Report)** | [`tests/test_report_generator.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_report_generator.py) | 10 tests | Multi-page ReportLab PDF, all 4 facility types, assumptions appendix |
+| **Criterion 7 (Reliability & Caching)**| [`tests/test_reliability.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_reliability.py) | 8 tests | Offline Gemini fallback, 2D vector map fallback, sub-120ms caching |
 
 ---
 *Dossier prepared and verified for Hackathon Jury Evaluation — Nivara Campus Energy Intelligence Platform.*

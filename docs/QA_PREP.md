@@ -175,13 +175,16 @@ This document arms the presentation team with authoritative, technically sound, 
 ### Question 10: "How does Nivara support different stakeholders without creating clutter or duplicate dashboards?"
 
 #### 🎙️ The Winning 30-Second Answer:
-> *"Nivara features **Role-Based Persona Adaptation** in `roles.py`. Rather than duplicating pages, a single dropdown dynamically reconfigures metric card focus, diagnostic widgets, and the Gemini assistant's system prompt to suit the Administrator, the Operations Engineer, or the Sustainability Officer."*
+> *"Nivara features **Role-From-Login Enterprise Portals**. Rather than cluttering users with feature-heavy presentation tabs, users log into an authoritative daily tool with **7 job-oriented destinations**. Each role lands on a tailored operational home—Operations on exception triage, Sustainability on BEE Star & carbon budgets, and Administration on portfolio governance. All presentation scaffolding and fault injectors are decoupled to a sidecar on port 8502."*
 
 #### 🔍 Deep Technical Defense:
-1. **Administrator Persona:** Focuses on monthly billing demand, avoidable financial loss, carbon budget burn-down, and board-ready PDF audit exports. Gemini acts as an executive advisor focused on capital ROI and utility surcharges.
-2. **Operations Persona:** Focuses on 15-minute load profiles, active anomaly alerts, root-cause "Why?" diagnostic cards, CMMS work-order SLAs, and the live fault injection studio. Gemini acts as Chief Facility Engineer diagnosing specific breaker kW ratings and equipment assets.
-3. **Sustainability Officer Persona:** Focuses on cross-facility BEE Star Ratings, ECBC 2017 chapter-level statutory checklists, state-wide decarbonization scaling, and NAPCC 20% trajectory tracking. Gemini acts as a statutory compliance auditor.
-4. **Tested & Verified:** The persona registry, role filtering, and dynamic prompt injection are verified in [`tests/test_roles.py`](file:///C:/Users/Paramjeet/Desktop/BPUT/tests/test_roles.py).
+1. **Job-Oriented Architecture (7 Destinations):** Replaced 10 demo pages with 7 clear operational destinations (`Home`, `Alerts & Work`, `Assets`, `Energy`, `Water`, `Reports`, `Settings`).
+2. **Role-Tailored Operational Homes:**
+   - **Operations Lead (`home_operations.py`):** Immediate morning triage of open equipment exceptions, active work order countdowns, and quick dispatch.
+   - **Sustainability Officer (`home_sustainability.py`):** BEE Star Rating, Energy Performance Index (EPI), NAPCC 20% carbon budget burndown curve, and avoidable carbon emissions.
+   - **Administrator (`home_admin.py`):** Multi-facility portfolio health matrix, billing risk, and edge device status.
+3. **Decoupled Presenter Architecture (Port 8502):** The daily operational product (`http://localhost:8501`) has strictly zero demo toggles, tour banners, or latency badges. All presentation tooling lives in `src/campus_energy/presenter/controller.py` on Port 8502.
+4. **Tested & Verified:** The role homes, navigation shell, and presenter isolation are covered by 316 automated tests in `tests/test_role_homes.py`, `tests/test_presenter_and_seed.py`, and `tests/test_polish.py`.
 
 ---
 
@@ -191,7 +194,7 @@ Keep these exact verified numbers at your fingertips during the jury presentatio
 
 | Metric / Parameter | Value | Verification Reference |
 | :--- | :--- | :--- |
-| **Total Automated Tests** | **209 / 209 passing (100%)** | `pytest tests/ -v` |
+| **Total Automated Tests** | **316 / 316 passing (100%)** | `pytest tests/ -v` |
 | **Total Monitored Assets** | **56 Assets (5 Buildings)** | `data/generated/assets.csv` |
 | **Telemetry Resolution** | **5-minute (8,064 timesteps, 28 days)** | `data/generated/telemetry.csv` |
 | **Total Telemetry Records** | **290,305 rows** | `data/generated/telemetry.csv` |

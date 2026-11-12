@@ -3,7 +3,7 @@
 > **AI-Driven Resource Optimization, Anomaly Detection & Closed-Loop Verification for Indian Campuses & Facilities**  
 > *Developed for Hackathon Jury Evaluation — Production-Grade Reliability, Statutory Compliance & 100% Offline Capability*
 
-[![Tests](https://img.shields.io/badge/pytest-209%20passing-success.svg)](#testing)
+[![Tests](https://img.shields.io/badge/pytest-316%20passing-success.svg)](#testing)
 [![IPMVP](https://img.shields.io/badge/M%26V-IPMVP%20Option%20B-blue.svg)](#closed-loop-verification)
 [![Statutory](https://img.shields.io/badge/Compliance-ECBC%202017%20%7C%20BEE%20Star-emerald.svg)](#statutory-compliance)
 [![Offline](https://img.shields.io/badge/Reliability-100%25%20Offline%20Ready-orange.svg)](#offline-capability)
@@ -50,13 +50,15 @@ flowchart TD
         CTX["Microclimate & Occupancy<br/>(Temp, Humidity, Timetables)"]
         NLP_IN["Occupant Feedback & Complaints<br/>(NLP Categorization)"]
         BDG2["Public Real-World Dataset<br/>(Building Data Genome 2)"]
+        BYOD["BYOD Telemetry Adapter<br/>(Automated CSV Column Mapping & DQE)"]
     end
 
     subgraph ENGINE_TIER ["2. Core Intelligence & Analytics Engine"]
         FEAT["Feature Engineering Engine<br/>(Rolling statistics, lag, cyclic time encodings)"]
         BASE["Physics & Statistical Baselining<br/>(Ridge Regression + Prophet Time-Series)"]
-        ANOM["Multi-Method Anomaly Detector<br/>(Z-Score + Deviation Thresholds + Fault Injector)"]
+        ANOM["Multi-Method Anomaly Detector<br/>(Z-Score + Deviation Thresholds + Fault Consensus)"]
         COMFORT["ASHRAE 55 Comfort Engine<br/>(PMV / PPD Thermal Neutrality & Setpoint Advisories)"]
+        HYDRO["HydroSense Minimum Night Flow<br/>(Pipe Acoustics & Leak Pinpointing)"]
         MICROGRID["Microgrid & BESS Dispatch<br/>(Rooftop Solar PV + Battery Peak Shaving)"]
     end
 
@@ -67,11 +69,12 @@ flowchart TD
         LEDGER["SavingsLedger (IPMVP Option B)<br/>(Closed-Loop Continuous M&V + Hit-Rate %)"]
     end
 
-    subgraph PRESENTATION_TIER ["4. Multi-Role UI, Notifications & Reports"]
-        DASH["Streamlit Interactive Dashboard<br/>(10 Guided Pages + Sub-Second Caching)"]
-        MAP_3D["3D Mapbox GL Satellite Map<br/>(Seamless 2D Plotly Offline Fallback)"]
-        AGENT["AI Facility Assistant<br/>(Gemini Live LLM + Grounded Offline Fallback)"]
-        NOTIF["Notification Gateway<br/>(Telegram & WhatsApp Multi-Role Routing)"]
+    subgraph PRESENTATION_TIER ["4. Multi-Role Enterprise UI & Companion Tools"]
+        APP["Daily Operational Product (Port 8501)<br/>(7 Core Destinations: Home, Alerts, Assets, Energy, Water, Reports, Settings)"]
+        ROLES["Role-Based Portals<br/>(Operations · Sustainability · Administrator)"]
+        AGENT["Ask Nivara Intelligence Panel<br/>(Contextual Gemini Live + Grounded Offline Fallback)"]
+        PRESENTER["Decoupled Presenter Sidecar (Port 8502)<br/>(Live Fault Injection & Jury Scenario Controller)"]
+        NOTIF["Notification Gateway<br/>(Telegram & SMTP Multi-Channel Routing)"]
         PDF["Statutory Audit PDF Generator<br/>(BEE Star Rating, NAPCC 20%, ECBC Compliance)"]
     end
 
@@ -97,12 +100,16 @@ Nivara is fully containerized and includes a standard `Makefile` for zero-fricti
 # 1. Install all dependencies and development tools
 make setup
 
-# 2. Run the interactive Streamlit dashboard
+# 2. Run the primary production operational tool (Port 8501)
 make run
 
-# 3. Direct launch with curated 2-minute Guided Jury Tour
+# 3. Launch dual-screen presentation mode (Port 8501 + Port 8502 Presenter Sidecar)
 make demo
 ```
+
+> **Note on Architecture:**
+> - `http://localhost:8501` serves the clean, authoritative operational tool that facility teams use daily.
+> - `http://localhost:8502` serves the companion **Presenter Controller**, keeping demo controls and fault injection completely isolated from the production UI.
 
 ### Reproduce Evaluations & Tests
 
@@ -113,7 +120,7 @@ make eval
 # 5. Run public real-world dataset validation (Building Data Genome 2)
 make realdata
 
-# 6. Run the comprehensive pytest test suite (209 tests)
+# 6. Run the comprehensive automated test suite (316 tests)
 make test
 ```
 
@@ -180,8 +187,8 @@ Validated against the open-access **Building Data Genome 2 (BDG2)** dataset (Mil
 | **3. Financial & Defensible Impact** | Avoided cost `{low, expected, high}` ranges; IPMVP Option B continuous M&V ledger (`ledger.py`); official audit PDF export (`report_generator.py`). | `pytest tests/test_ledger.py`, `pytest tests/test_consistency.py` |
 | **4. Safety & Operational Guardrails** | Service-Impact Guard protecting life-critical loads and thermal comfort (`guard.py`); 100% clinical safety lockout enforcement. | `pytest tests/test_service_guard.py` |
 | **5. Statutory Localization (India)** | BEE Star Rating, Energy Performance Index (EPI), NAPCC 20% carbon burndown, OERC 3-tier ToD tariffs, and Power Factor rebates (`assumptions.yaml`). | `pytest tests/test_india_levers.py`, `pytest tests/test_assumptions.py` |
-| **6. User Experience & Personas** | Role-based views for Administrator, Operations, and Sustainability (`roles.py`); 6-step curated Guided Jury Tour (`tour.py`). | `make demo`, `pytest tests/test_roles.py` |
-| **7. System Reliability & Polish** | 100% offline fallback for Gemini, 2D Plotly map fallback, page-level error boundaries, and sub-second caching (`test_reliability.py`). | `make test`, `pytest tests/test_reliability.py` |
+| **6. User Experience & Personas** | 7 core operational destinations (`ui/views/`), role-based portals (`home_operations.py`, `home_sustainability.py`, `home_admin.py`), zero-hype tone pass, and quiet design system. | `pytest tests/test_role_homes.py`, `pytest tests/test_polish.py` |
+| **7. System Reliability & Polish** | 100% offline fallback for Gemini, 2D Plotly map fallback, page-level error boundaries, and sub-120ms caching across 316 automated tests (`test_reliability.py`). | `make test`, `pytest tests/test_reliability.py` |
 
 ---
 
@@ -208,15 +215,34 @@ BPUT/
 ├── src/campus_energy/
 │   ├── adapters/                 # BYOD CSV upload parser & column mapping detector
 │   ├── analytics/                # Baselining, anomalies, forecasting, comfort, PDF generator
-│   ├── dashboard/                # Streamlit UI (app.py) & Gemini Assistant (agent.py)
+│   ├── dashboard/                # Streamlit app shell (app.py) & Gemini Assistant (agent.py)
 │   ├── decision/                 # Service-Impact Guard, recommendation engine, savings ledger
-│   ├── demo/                     # Guided jury tour & live fault injection studio
-│   ├── notify/                   # Telegram & WhatsApp alert routing gateway
+│   ├── demo/                     # Live fault injection studio & tour definitions
+│   ├── notify/                   # Telegram & SMTP alert routing gateway
+│   ├── presenter/                # Decoupled Presenter Controller Sidecar (Port 8502)
 │   ├── profiles/                 # Pydantic facility profile schema & loader
-│   └── simulator/                # Physical campus model & synthetic telemetry generator
-├── tests/                        # 209 automated unit, integration, and reliability tests
+│   ├── simulator/                # Physical campus model & synthetic telemetry generator
+│   ├── storage/                  # SQLite repository & seed state
+│   └── ui/                       # Enterprise Design System, reusable components & views
+│       ├── components.py         # Standardized KPI cards, alert rows, status badges, disclaimers
+│       ├── style.css             # High-contrast, responsive enterprise stylesheet
+│       ├── users.py              # User profiles, auth store & role definitions
+│       ├── panels/
+│       │   └── ask_nivara.py     # Contextual Ask Nivara intelligence drawer
+│       └── views/                # 7 Core Operational Destinations
+│           ├── home_operations.py
+│           ├── home_sustainability.py
+│           ├── home_admin.py
+│           ├── alerts_work.py
+│           ├── assets.py
+│           ├── energy.py
+│           ├── water.py
+│           ├── reports.py
+│           ├── settings.py
+│           └── styleguide.py
+├── tests/                        # 316 automated unit, integration, and reliability tests
 ├── Makefile                      # One-command execution (setup, run, demo, eval, test)
-└── README.md                     # Hackathon jury documentation & architecture overview
+└── README.md                     # Master project overview & architecture documentation
 ```
 
 ---
