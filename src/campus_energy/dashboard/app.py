@@ -1881,13 +1881,20 @@ elif "Alerts" in page:
                 context_row = None
                 if ctx is not None and not ctx.empty and alert.detected_at:
                     det_ts = pd.to_datetime(alert.detected_at)
+                    if getattr(det_ts, "tzinfo", None) is not None:
+                        det_ts = det_ts.tz_localize(None)
+
                     ctx_bldg = ctx[ctx["building_id"] == alert.building_id]
                     if not ctx_bldg.empty:
-                        exact_match = ctx_bldg[ctx_bldg["timestamp"] == det_ts]
+                        ctx_ts = ctx_bldg["timestamp"]
+                        if getattr(ctx_ts.dt, "tz", None) is not None:
+                            ctx_ts = ctx_ts.dt.tz_localize(None)
+
+                        exact_match = ctx_bldg[ctx_ts == det_ts]
                         if not exact_match.empty:
                             context_row = exact_match.iloc[0].to_dict()
                         else:
-                            time_diffs = (ctx_bldg["timestamp"] - det_ts).abs()
+                            time_diffs = (ctx_ts - det_ts).abs()
                             context_row = ctx_bldg.loc[time_diffs.idxmin()].to_dict()
 
                 expl = explain_alert(alert, context_row=context_row, asset_info=asset_info)
