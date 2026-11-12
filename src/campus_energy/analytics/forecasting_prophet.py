@@ -14,20 +14,15 @@ for _name in ("prophet", "cmdstanpy"):
     for _h in _l.handlers:
         _h.setLevel(logging.WARNING)
 
-# Workaround for polars environment incompatibility with cmdstanpy CSV reading
-# Workaround: polars package in this environment raises RuntimeError (SSE3 flag)
-# which breaks cmdstanpy's optional polars loader (it only catches ImportError).
-# Intercept 'polars' to raise ImportError cleanly if broken so cmdstanpy falls back to numpy.
+# Workaround for polars environment incompatibility with cmdstanpy CSV reading:
+# polars in some environments raises RuntimeError (SSE3 flag) on import, which breaks
+# cmdstanpy's optional polars loader (cmdstanpy only catches ImportError/ModuleNotFoundError).
+# Setting sys.modules["polars"] = None causes Python's standard import system to cleanly
+# raise ModuleNotFoundError without monkey-patching builtins.__import__.
 try:
-    import polars
+    import polars  # noqa: F401
 except Exception:
-    import builtins
-    _real_import = builtins.__import__
-    def _polars_guard(name, *args, **kwargs):
-        if name == "polars":
-            raise ImportError("polars disabled due to CPU compatibility")
-        return _real_import(name, *args, **kwargs)
-    builtins.__import__ = _polars_guard
+    sys.modules["polars"] = None
 
 from prophet import Prophet
 
